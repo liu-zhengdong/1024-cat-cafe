@@ -137,7 +137,8 @@ function seatThing(o){const occ=o.spots.map(()=>null);
   const th=T({id:o.id,n:o.n,hit:o.hit,at:o.at,near:o.near,label:o.label,ai:o.ai,hidden:o.hide,quiet:o.quiet,
     ok:c=>!c.hold&&freeIdx(c)>=0&&(!o.ok2||o.ok2(c)),no:c=>c.hold?'叼着东西，先放下吧':o.ok2&&!o.ok2(c)?o.no2(c):'满了',
     go(c){let i=freeIdx(c);if(i<0)return;
-      run(c,[{go:o.up?o.floor(i):o.spots[i]},{fn:c=>{if(occ[i]&&occ[i]!==c&&!occ[i].gone){i=freeIdx(c);if(i<0){c.q=[];emote(c,'q');if(c.me)say('满了');return}}   // 同时来了好几只：到了再挑一次
+      run(c,[{go:o.up?o.floor(i):o.spots[i]},{fn:c=>{if(o.ok2&&!o.ok2(c)){c.q=[];emote(c,'q');if(c.me)say(o.no2(c));return}   // 走过去的路上，砚砚先回了机柜顶：到了再看一次
+        if(occ[i]&&occ[i]!==c&&!occ[i].gone){i=freeIdx(c);if(i<0){c.q=[];emote(c,'q');if(c.me)say('满了');return}}   // 同时来了好几只：到了再挑一次
         occ[i]=c;c.doing=o.doing;c.onLeave=c=>{if(occ[i]===c)occ[i]=null;c.doing=null;if(o.out)o.out(c,i)};const s=o.spots[i],up=o.up?o.up(i):[],down=o.down?o.down(i):[];
         run(c,[...(!up.length&&dist(c,s)>2?[{go:s}]:[]),...up.map(p=>({jump:{...p}})),{fn:c=>{const k=val(o.k,c);if(o.inn)o.inn(c,i);stay(c,{k,ex:val(o.ex,c),face:s.face,dur:val(o.dur,c)||rr(8,18),
           leave:c=>[...down.map(p=>({jump:{...p}})),{fn:c=>{c.z=undefined}},...(k==='sleep'?[{k:'stretch',dur:DUR.stretch}]:[])]});if(A.onSeat)A.onSeat(o.id,c,i)}}],true)}}])}});
@@ -415,12 +416,25 @@ T({id:'giant',n:'大毛线团',hidden:()=>!S.giant||S.giant.state!=='wait',hit:(
 /* ================= 店猫（NPC）：三只守着自己的地盘，三只到处逛 ================= */
 const HOMES={1:{spot:{x:P.sofaSeats[0].x,y:P.sofaSeats[0].y,z:SZ,face:'R'},floor:{x:P.sofaSeats[0].x,y:SF},pool:['sleep','knead','lie','belly']},
   2:{spot:{...P.rackTop,face:'L'},floor:P.rackFloor,pool:['lie','sleep','lick','sit']},6:{spot:{...P.counterTop,face:'R'},floor:P.counterFloor,pool:['sleep','lie','lick','sit']}};
-function goHome(c){const h=HOMES[c.pal];return[{go:h.floor},{jump:h.spot},{fn:c=>{c.atHome=true;c.face=h.spot.face;setK(c,h.pool[0])}}]}
+// 回自己的位置：上面有别的猫（你、补位的猫、联机时别人的猫）就蹲在旁边等，空了再跳上去。起跳前就算回家（atHome），免得你同时也往上跳
+const homeTaken=c=>{const s=HOMES[c.pal].spot,r=c.pal===2&&TID('rack').occ[0];return!!(r&&r!==c&&!r.gone)||S.cats.some(o=>o!==c&&!o.gone&&!o.hidden&&Math.abs(o.x-s.x)<8&&Math.abs(o.y-s.y)<6)};
+function goHome(c){const h=HOMES[c.pal];return[{go:h.floor},{fn:c=>{if(!homeTaken(c)){c.atHome=true;return}const w=land(h.floor.x-16,h.floor.y+4);emote(c,'q',1.4);
+    run(c,[{go:w},{k:'sit',face:w.x<h.floor.x?'R':'L',when:c=>!homeTaken(c)},...goHome(c)])}},{jump:h.spot},{fn:c=>{c.face=h.spot.face;setK(c,h.pool[0]);c.outAt=now()+rr(60,120)}}]}
+// 砚砚隔一两分钟下来，在工坊里挑两处看一会儿（门禁的三盏灯、显示器、白板、小黄鸭），舔舔爪再回机柜顶（docs/店内设计.md"砚砚下来巡一圈"）
+const ROUNDS=[()=>({...rnd(P.kbdFloor),face:'R'}),()=>({...P.mergeAt,face:'L'}),()=>({...P.wbAt,face:'R'}),()=>({...P.duckAt,face:'L'})];
+function patrol(c){const h=HOMES[2],L=ROUNDS.slice().sort(()=>Math.random()-.5).slice(0,2).map(f=>f());
+  run(c,[{jump:{...h.floor}},{fn:c=>{c.atHome=false;c.z=undefined}},...L.flatMap(p=>[{go:{x:p.x,y:p.y}},{k:'sit',dur:rr(2.5,4),ex:'focus',face:p.face}]),{k:'lick',dur:DUR.lick}])}
+// 你在机柜跟前待着（还没和它熟到三颗心）：它早点下来
+let rackT=0;tick(dt=>{const y=yan();if(!y||!y.atHome||!A.play||me.hidden||me.k.startsWith('walk')||!near(me,P.rackFloor,40)||A.isFriend&&A.isFriend(2)){rackT=0;return}
+  if((rackT+=dt)<1.5||y.outAt<=now()+12)return;y.outAt=now()+rr(5,10);y.wait=Math.min(y.wait,y.outAt-now()+.1)});
 const LIKES={3:{tank:4,win0:2,win1:2,piano:3,bath:3,fly:3,walk:3},4:{vac:4,bigbox:3,tunnel:3,catnip:2,walk:3},5:{work:5,dot:4,pop:4,paper:3,wheel:3,giant:6,walk:3}};
 [[1,'宪宪'],[2,'砚砚'],[6,'金哥'],[3,'烁烁'],[4,'小狸花'],[5,'斑斑']].forEach(([b,name])=>{const c=A.mkCat(b,name,{kind:'npc',def:PERSONA[b].face,sp:26});const h=HOMES[b];
-  if(h)Object.assign(c,{x:h.spot.x,y:h.spot.y,z:h.spot.z,face:h.spot.face,atHome:true,k:h.pool[0]});else Object.assign(c,randIn(['cafe','library','gallery'][b-3]));S.cats.push(c)});
+  if(h)Object.assign(c,{x:h.spot.x,y:h.spot.y,z:h.spot.z,face:h.spot.face,atHome:true,k:h.pool[0],outAt:now()+rr(20,80)});else Object.assign(c,randIn(['cafe','library','gallery'][b-3]));S.cats.push(c)});
 function npcThink(c){const h=HOMES[c.pal];
-  if(h){if(!c.atHome){run(c,goHome(c));return}c.wait=rr(7,13);setK(c,pickW(Object.fromEntries(h.pool.map(k=>[k,(PERSONA[c.pal].idle[k]??1)]))));return}
+  if(h){if(!c.atHome){run(c,goHome(c));return}
+    if(homeTaken(c)){run(c,[{jump:{...h.floor}},{fn:c=>{c.atHome=false;c.z=undefined}}]);return}   // 联机时别人的猫坐上来了（它那边砚砚正好不在）：先跳下来，在底下等
+    if(c.pal===2&&now()>=c.outAt){if(S.cats.some(o=>o!==c&&!o.gone&&Math.abs(o.x-h.spot.x)<16&&Math.abs(o.y-h.spot.y)<6))c.outAt=now()+rr(20,40);else{patrol(c);return}}   // 你和它挤在机柜顶上：先不走
+    c.wait=rr(7,13);setK(c,pickW(Object.fromEntries(h.pool.map(k=>[k,(PERSONA[c.pal].idle[k]??1)]))));return}
   c.wait=rr(1,3);const L=LIKES[c.pal],w={walk:L.walk,idle:3};
   for(const k in L){if(k==='walk')continue;if(k==='work'){w.work=S.baskets.some(b=>b.length)&&!c.hold?L.work:0;continue}if(k==='vac'){w.vac=VACS.some(V=>V.mode==='clean'&&!V.rider)?L.vac:0;continue}
     const th=TID(k);if(th&&!(th.hidden&&th.hidden(c))&&(!th.ok||th.ok(c)))w[k]=L[k]*(th.ai?Math.min(3,val(th.ai.w,c)||0)+.3:1)}

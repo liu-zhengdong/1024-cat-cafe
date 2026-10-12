@@ -107,7 +107,7 @@ const GUIDE={
   buckets:{n:'木桶',room:'bath',what:'扒拉一下，哗啦倒一地，过一会儿店猫又摞回去'},
   cseat:{n:'电影院座位',room:'cinema',hint:'坐下就开演',what:'坐下，画面切到银幕：一部讲猫猫咖啡馆的像素小电影',tie:'电影里讲的都是猫猫咖啡馆真有的功能',tip:'multi'},
   projector:{n:'放映机',room:'cinema',what:'换一卷：跳到下一段'}};
-const GID=id=>id.startsWith('q_')||id.startsWith('st:')?null:id==='treeslide2'?'treeslide':id.replace(/^(basket|win|feed|plate|shelf|toyback|table|chair|stool|fish|bed|bean|poster|booth)\d$/,'$1');
+const GID=id=>id.startsWith('q_')||id.startsWith('st:')?null:id==='treeslide2'?'treeslide':id==='rackfriend'?'rack':id.replace(/^(basket|win|feed|plate|shelf|toyback|table|chair|stool|fish|bed|bean|poster|booth)\d$/,'$1');
 
 WORLD_MODS.push(A=>{
 const {S,P,me,rr,rnd,run,emote,say,sfx,after,TH,dist}=A;

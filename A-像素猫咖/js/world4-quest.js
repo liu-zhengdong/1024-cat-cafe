@@ -95,7 +95,7 @@ function act(q,id){
   // 织好了：猫自己走去最近的那扇橱窗，挂上
   if(id==='hang'){A.dlg.close();if(me.hold!==q.y)return true;const w=[0,1].map(i=>A.TID('win'+i)).sort((a,b)=>dist(a.at(me),me)-dist(b.at(me),me))[0];A.run(me,[{go:w.at(me)},{fn:()=>A.act(me,w)}]);return true}
   if(id==='review'){const o=S.cats.filter(c=>!c.me&&!c.gone&&!c.hidden&&!c.leaving&&!c.riding&&!c.place&&!c.hold&&(c.z==null||c.kind==='npc'&&c.atHome)&&near(c,me,170)).sort((a,b)=>dist(a,me)-dist(b,me))[0];
-    if(!o){say('附近没有猫。去找一只吧——砚砚在二楼工坊的机柜顶上');return true}A.pass(me,o);return true}
+    if(!o){say('附近没有猫。去找一只吧——砚砚常在二楼工坊的机柜顶上');return true}A.pass(me,o);return true}
   return false}
 // 自己解：扑一下 → 随机一种玩法 → 织好
 function solve(q,pre=[]){const easy=q.y.easy;q.st='solving';q.s0=now();q.sdur=pre.reduce((s,x)=>s+(x.dur||0),0)+(easy?0:DUR.pounce)+(easy?1.2:1.8);
