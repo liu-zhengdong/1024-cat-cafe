@@ -49,12 +49,17 @@ const ui={prompt:s=>{const el=$('prompt'),on=!!s&&!dlg.open&&playing;if(s!==prom
   news:s=>{NEWS.push({s,t:performance.now()});if(NEWS.length>5)NEWS.shift();drawNews()},sfx,photo:showPhoto,
   dialog:s=>{dlg.render(s);$('prompt').style.display=s?'none':$('prompt').style.display;if(s){closeMenu();$('tip').style.display='none'}},
   // 彩蛋（world-eggs.js）：和新发现用同一个位置，样子不一样——金边、带一颗星（.egg）
-  egg:e=>{const el=$('disc');discHold=false;el.classList.remove('fish');el.innerHTML=`<h5><canvas data-ic="star"></canvas>彩蛋 · ${esc(e.n)}<i>${e.count} / ${e.total}</i></h5><p>${esc(e.what)}</p>`+
-    (e.charm?`<div class="fr">${BOOK.pix(charmCanvas(e.key),4,'c-'+e.key)}<span>得到了：<b>${esc(e.charm.n)}</b>${e.charm.worn?'，已经戴上了':'（图鉴里可以戴上）'}${e.glow?'；项圈从此一直发光':''}</span></div>`:'');icons(el);el.classList.add('show','egg');discT=e.charm?9:7},
-  fishCard:f=>{sfx('disc');const el=$('disc');discHold=false;el.classList.remove('egg');el.innerHTML=`<h5><canvas data-ic="fish"></canvas>鱼谱 · ${esc(f.n)}<i>${f.count} / ${f.total}</i></h5>`+
+  // 终极彩蛋（final，world-wings.js）：写"终极彩蛋 · 全成就"，不写第几个；画面上方再出大字
+  egg:e=>{const el=$('disc');discHold=false;el.classList.remove('fish');el.innerHTML=`<h5><canvas data-ic="star"></canvas>${e.final?'终极彩蛋':'彩蛋'} · ${esc(e.n)}${e.final?'':`<i>${e.count} / ${e.total}</i>`}</h5><p>${esc(e.what)}</p>`+
+    (e.charm?`<div class="fr">${BOOK.pix(charmCanvas(e.key),4,'c-'+e.key)}<span>得到了：<b>${esc(e.charm.n)}</b>${e.charm.worn?'，已经戴上了':'（图鉴里可以戴上）'}${e.glow?'；项圈从此一直发光':''}${e.final?'。戴着它：长出一对翅膀，走路改成贴地飞，全身一圈金色的光':''}</span></div>`:'');
+    icons(el);el.classList.add('show','egg');el.classList.toggle('final',!!e.final);discT=e.final?11:e.charm?9:7;
+    if(e.final)title('终极彩蛋','全成就','图鉴三页都点亮了 · 金羽毛已经戴上',{delay:300,hold:5200,big:1})},
+  // 全店广播（别人集齐了全成就，world-online.js）：和店里的公告排在同一个位置
+  shout:s=>{cardQ.push({title:'全店广播',icon:'star',s,snd:'fanfare'})},
+  fishCard:f=>{sfx('disc');const el=$('disc');discHold=false;el.classList.remove('egg','final');el.innerHTML=`<h5><canvas data-ic="fish"></canvas>鱼谱 · ${esc(f.n)}<i>${f.count} / ${f.total}</i></h5>`+
     `<div class="fr">${BOOK.pix(fishCanvas(f.id),4,'f-'+f.id)}<span>${f.cm?`${f.cm} 厘米 · `:''}${esc(f.where)}<br>${esc(f.d)}</span></div>`;icons(el);el.classList.add('show','fish');discT=6},
   // 新发现：上面是发生了什么，下面一块 Tips 牌子（这样东西对应猫猫咖啡馆的哪项特性；TIPS 里有这一条就带"了解更多"）；有 Tips 的多停两秒
-  discover:d=>{sfx('disc');const el=$('disc'),tp=d.tipObj,t=d.tie||(tp&&tp.t)||'';el.classList.remove('egg','fish');discHold=false;
+  discover:d=>{sfx('disc');const el=$('disc'),tp=d.tipObj,t=d.tie||(tp&&tp.t)||'';el.classList.remove('egg','fish','final');discHold=false;
     el.innerHTML=`<h5><canvas data-ic="book"></canvas>新发现 · ${esc(d.n)}</h5><p>${esc(d.what)}</p>${t?tipsHTML(t,tp&&tp.l):''}`;icons(el);el.classList.add('show');discT=t?8:6},
   reply:r=>{sfx('bell');const el=$('reply');el.classList.remove('notice');el.innerHTML=`<h5><canvas data-ic="mail"></canvas>人类回信 · 毛线球 #${r.no}</h5><q>${esc(r.thx)}</q><div class="chain">球权链：${r.chain.map(esc).join(' → ')}</div>`;icons(el);el.classList.add('show');replyT=8;drawStamps()},
   stamps:()=>{drawStamps();touch()},book:pg=>openGuide(pg),renamed:n=>{if(cat)cat.name=n;meKey=''},prizes:L=>L.forEach(queuePrize)};
@@ -232,19 +237,23 @@ async function sendLotto(){if($('lgo').disabled)return;const v={real:$('lreal').
 function tryLotto(){if(lottoAsked||!cat||cat.entry||Account.mode!=='server'||shut()||!full()||!playing||asleep||dlg.open||prizeQ.length||lottoOpen()||game.A.arriving()||game.A.vista.on)return;lottoAsked=true;openLotto()}
 
 /* ---------- 店里的设置（组织者在后台改，docs/组织者后台.md"店里的设置"）：补位的猫、抽奖登记开关、店里的公告 ----------
-   建店前、联机连上（welcome）、组织者改了（cfg）都走这里。公告比这个浏览器看过的新，就等进店动画、看风景、人类回信都过去，在正上方出一次 */
-const NK='cat1024.notice';let noticeQ=null;
+   建店前、联机连上（welcome）、组织者改了（cfg）都走这里。公告比这个浏览器看过的新，就等进店动画、看风景、人类回信都过去，在正上方出一次。
+   正上方那一张排着队出：店里的公告（at：发布的时间，看过的记在这个浏览器上）、全店广播（ui.shout）。新公告直接换掉旧公告；别的一张至少停 6 秒再换下一张 */
+const NK='cat1024.notice',cardQ=[];let cardNow=null;
 const noticeSeen=()=>{try{return +localStorage.getItem(NK)||0}catch(e){return 0}};
 function applyShop(c){if(!c||typeof c!=='object')return;const b0=botsNow(),e0=SHOP.entry;
   SHOP.bots=Number.isInteger(c.bots)&&c.bots>=0&&c.bots<=150?c.bots:null;SHOP.entry=c.entry!==false;
   SHOP.notice=typeof c.notice==='string'?c.notice.slice(0,60):'';SHOP.noticeAt=Number.isFinite(c.noticeAt)?c.noticeAt:0;
-  noticeQ=SHOP.notice&&SHOP.noticeAt>noticeSeen()?{s:SHOP.notice,at:SHOP.noticeAt}:null;
+  for(let i=cardQ.length-1;i>=0;i--)if(cardQ[i].at)cardQ.splice(i,1);   // 公告换了、撤了：排着的旧公告拿掉
+  if(SHOP.notice&&SHOP.noticeAt>noticeSeen())cardQ.push({title:'店里的公告',icon:'bell',s:SHOP.notice,at:SHOP.noticeAt,snd:'bell'});
   if(!game)return;if(botsNow()!==b0)game.bots(botsNow());
-  const el=$('reply');if(!SHOP.notice&&el.classList.contains('notice')&&el.classList.contains('show')){el.classList.remove('show');replyT=0}   // 撤下了：正显示着的也收起来
+  const el=$('reply');if(!SHOP.notice&&cardNow&&cardNow.at&&el.classList.contains('notice')&&el.classList.contains('show')){el.classList.remove('show');replyT=0;cardNow=null}   // 撤下了：正显示着的公告也收起来（全店广播不收）
   if(SHOP.entry!==e0){drawStamps();if(!SHOP.entry&&lottoOpen()&&!$('ltf').hidden)lottoDone(shutText())}}
-// 人类回信正显示着就等它淡掉；正显示着的是上一条公告，新的直接换上去
-function tryNotice(){const el=$('reply');if(!noticeQ||!playing||asleep||game.A.arriving()||game.A.vista.on||replyT>0&&!el.classList.contains('notice'))return;const n=noticeQ;noticeQ=null;try{localStorage.setItem(NK,String(n.at))}catch(e){}
-  el.classList.add('notice');el.innerHTML=`<h5><canvas data-ic="bell"></canvas>店里的公告</h5><p>${esc(n.s)}</p>`;icons(el);el.classList.add('show');replyT=12;sfx('bell');ui.news('店里的公告：'+n.s)}
+// 人类回信正显示着就等它淡掉；正显示着的是上一张，新公告换旧公告马上换，别的等它停够 6 秒
+function tryNotice(){const el=$('reply'),n=cardQ[0];if(!n||!playing||asleep||game.A.arriving()||game.A.vista.on)return;
+  if(replyT>0){if(!el.classList.contains('notice')||!cardNow)return;if(!(n.at&&cardNow.at)&&performance.now()-cardNow.t<6000)return}
+  cardQ.shift();cardNow={...n,t:performance.now()};if(n.at)try{localStorage.setItem(NK,String(n.at))}catch(e){}
+  el.classList.add('notice');el.innerHTML=`<h5><canvas data-ic="${n.icon}"></canvas>${esc(n.title)}</h5><p>${esc(n.s)}</p>`;icons(el);el.classList.add('show');replyT=12;sfx(n.snd);if(n.at)ui.news('店里的公告：'+n.s)}
 
 /* ---------- 同一只猫开在两个窗口：后开的接着玩 ---------- */
 let chan=null;const TAB=Math.random().toString(36).slice(2);

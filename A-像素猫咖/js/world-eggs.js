@@ -4,6 +4,7 @@
      别的文件可以往里加（在 world-eggs.js 后面加载、建店之前加好就行）。彩蛋不进 GUIDE，不算"店里的东西"的件数。每个彩蛋一枚挂坠，见 world-charms.js 的 CHARMS。
    - A.eggs.found(key)：找到了（只算第一次）；A.eggs.has(key)；A.eggs.step(key,i)：第 i 步做完了（0 起），返回做完了几步；A.eggs.steps(key)：做完了哪几步（数组）
    - A.eggs.list()：[{key,n,hint,what,found,at,steps,done}]，图鉴用；A.eggs.count()、A.eggs.total；A.eggs.info(key)：此刻的谜面、提示、带我去，分几步的还有 i、parts
+   - 终极彩蛋（final，键 ultimate，"全成就"）：图鉴三页都点亮才有（world-wings.js 判断、触发、长翅膀）。它不进 list()、count()、total（那几处只数八个）；A.eggs.progress() 三页各点亮了几个
    - 挂坠：A.eggs.worn() 戴着哪枚（彩蛋的键）、A.eggs.wear(key 或 null)；去过猫猫星球项圈一直发光。A.eggs.tipOpen(key)、A.eggs.openTip(key)：图鉴里"要点提示"点开过没有
    - A.eggs.counts：联机时每个彩蛋有几只猫找到（world-online.js 填）；A.onEggFound(key)：第一次找到一个彩蛋（world-online.js 接上，发给服务端）
    这个文件里还有几个不属于哪间房的彩蛋：九条命（屋顶的屋檐边）、10:24、老秘籍；别的在它们各自的房间里（澡堂、舞厅在 world-b1.js，猫猫星球在 world-rocket.js，片尾彩蛋在 cinema.js）。 */
@@ -16,7 +17,11 @@ const EGGS={
   clock:{n:'10:24',hint:'门厅的钟，一天里有两分钟不一样',tip:()=>{const d=new Date(),m=d.getHours()*60+d.getMinutes(),n=[624,1344,624+1440].find(x=>x>m)-m;return`现实时间 10:24 或 22:24 的时候待在店里（离下一次还有${n>=60?' '+Math.floor(n/60)+' 小时':''}${n%60?' '+n%60+' 分钟':''}）`},
     go:{x:286,y:96,label:'门厅的钟'},what:'10:24 的时候，门厅的钟里探出一只猫报时，舞台上放了一场 1024 烟花'},
   konami:{n:'老秘籍',hint:'一段老游戏里的秘籍，在店里也管用',tip:'三十条命的那个老秘籍：上上下下……',what:'老游戏的秘籍真的管用：你的猫变成了彩虹色'},
-  credits:{n:'片尾彩蛋',hint:'电影放完别急着走',tip:'去地下的小电影院，坐下看完一整部，字幕走完别起身',go:'cseat',what:'看完了整部《猫猫咖啡馆》：字幕后面，THE END 上溜进来一个红点，六只猫扑成一团；红点溜出银幕，被你的猫一爪拍掉，最后它们对你慢慢眨眼'}};
+  credits:{n:'片尾彩蛋',hint:'电影放完别急着走',tip:'去地下的小电影院，坐下看完一整部，字幕走完别起身',go:'cseat',what:'看完了整部《猫猫咖啡馆》：字幕后面，THE END 上溜进来一个红点，六只猫扑成一团；红点溜出银幕，被你的猫一爪拍掉，最后它们对你慢慢眨眼'},
+  // 终极彩蛋：放在最后（联机里的挂坠编号跟着 CHARMS 的顺序，金羽毛是第 9 枚）
+  ultimate:{n:'全成就',final:1,hint:'图鉴三页都点亮的猫，会长出点什么',tip:'店里的东西每样都玩一次，鱼谱十种都钓到，另外八个彩蛋都找到',
+    what:'店里的每样东西、鱼谱里的十种鱼、八个彩蛋，全都找到了：背上长出一对翅膀，从此贴着地面飞，全身一圈金色的光'}};
+const EGG_REG=Object.keys(EGGS).filter(k=>!EGGS[k].final);   // 普通的八个（图鉴页签、前台猫、件数都只数它们）
 
 WORLD_MODS.push(A=>{
 const {S,me,news,sfx}=A;
@@ -26,15 +31,18 @@ const dress=()=>{const s=st(),w=s.$wear;me.charm=w&&EGGS[w]&&s[w]&&s[w].at?w:nul
 const E=A.eggs={counts:null,
   has:k=>!!(st()[k]&&st()[k].at),
   found(k){const e=EGGS[k];if(!e)return false;const s=st();if(s[k]&&s[k].at)return false;s[k]=Object.assign(s[k]||{},{at:Date.now()});
-    // 挂坠：手上没戴的就戴上；猫猫星球的水晶项链最难得，直接换上
-    if(CHARMS[k]&&(!s.$wear||k==='planet'))s.$wear=k;A.guide.save();dress();
-    sfx('egg');const ch=CHARMS[k];A.ui.egg&&A.ui.egg({key:k,n:e.n,what:e.what,count:E.count(),total:E.total,charm:ch?{key:k,n:ch.n,d:ch.d,worn:s.$wear===k}:null,glow:k==='planet'});
-    news(`${me.label||'你'}找到了一个彩蛋：${e.n}`);A.emit&&A.emit('egg',k);if(A.onEggFound)A.onEggFound(k);return true},
+    // 挂坠：手上没戴的就戴上；猫猫星球的水晶项链最难得、终极彩蛋的金羽毛，直接换上
+    if(CHARMS[k]&&(!s.$wear||k==='planet'||e.final))s.$wear=k;A.guide.save();dress();
+    sfx('egg');const ch=CHARMS[k];A.ui.egg&&A.ui.egg({key:k,n:e.n,what:e.what,count:E.count(),total:E.total,final:!!e.final,charm:ch?{key:k,n:ch.n,d:ch.d,worn:s.$wear===k}:null,glow:k==='planet'});
+    news(e.final?`${me.label||'你'}集齐了全成就，长出了一对翅膀`:`${me.label||'你'}找到了一个彩蛋：${e.n}`);A.emit&&A.emit('egg',k);if(A.onEggFound)A.onEggFound(k);return true},
   step(k,i){const s=st(),o=s[k]=s[k]||{};o.steps=o.steps||[];if(!o.steps.includes(i)){o.steps.push(i);o.steps.sort((a,b)=>a-b);A.guide.save()}return o.steps.length},
   steps:k=>((st()[k]||{}).steps||[]).slice(),
-  list:()=>Object.entries(EGGS).map(([key,e])=>{const s=st()[key]||{};return{key,n:e.n,hint:e.hint,what:e.what,found:!!s.at,at:s.at||0,steps:e.steps||0,done:(s.steps||[]).length}}),
-  count:()=>Object.keys(EGGS).filter(k=>E.has(k)).length,
-  get total(){return Object.keys(EGGS).length},
+  list:()=>EGG_REG.map(key=>{const e=EGGS[key],s=st()[key]||{};return{key,n:e.n,hint:e.hint,what:e.what,found:!!s.at,at:s.at||0,steps:e.steps||0,done:(s.steps||[]).length}}),
+  count:()=>EGG_REG.filter(k=>E.has(k)).length,
+  get total(){return EGG_REG.length},
+  // 图鉴三页各点亮了几个：店里（GUIDE）、鱼谱（不算破靴子这些杂物）、彩蛋（普通的八个）。全都满了就是全成就
+  progress(){const G=A.guide,L=G.fishLog(),F=FISH_KINDS.filter(f=>!f.junk);return{all:[G.count(),G.total],fish:[F.filter(f=>L[f.id]).length,F.length],egg:[E.count(),E.total]}},
+  full(){const p=E.progress();return['all','fish','egg'].every(k=>p[k][0]>=p[k][1])},
   // 此刻的谜面、提示、带我去（分几步的按做到哪一步说）
   info(k){const e=EGGS[k];if(!e)return null;const n=e.now&&!E.has(k)?e.now():null;return n?{riddle:n.riddle||e.hint,tip:val(n.tip),go:n.go,i:n.i,parts:n.parts}:{riddle:e.hint,tip:val(e.tip),go:e.go}},
   tipOpen:k=>!!(st()[k]&&st()[k].tip),openTip(k){const s=st(),o=s[k]=s[k]||{};if(!o.tip){o.tip=1;A.guide.save()}},

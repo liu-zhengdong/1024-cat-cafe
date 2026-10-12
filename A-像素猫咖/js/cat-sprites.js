@@ -138,6 +138,15 @@ function sideWalk(step,tf,{expr=null,bob=0}={}){step=((step%4)+4)%4;const v=SIDE
   [0,3].forEach(i=>legP(G,L[i][0],v.top+1,v.bottom,'b',L[i][2],L[i][1]));
   stamp(G,expr?turnedFace(expr):HEAD_R(),v.hx,b);G.cx=v.cx;return G}
 
+/* ================= 贴地飞：戴着终极彩蛋的金羽毛（离地、上下浮、翅膀在 world-wings.js 里加） ================= */
+// 侧身，四只脚前后划，像猫在水里划水：一只前腿往前够、另一只往回扒，后腿一蹬一收，下一帧收拢，再换一边。[近后, 远后, 远前, 近前] → [x, 抬起, 脚偏移]
+const PADDLE=[[[3,0,-3],[5,2,2],[13,0,-2],[15,1,3]],[[3,1,-1],[5,1,0],[13,1,0],[15,1,1]],[[3,2,2],[5,0,-3],[13,1,3],[15,0,-2]],[[3,1,0],[5,1,-1],[13,1,1],[15,1,0]]];
+function sideFly(step,tf,{expr=null}={}){step=((step%4)+4)%4;const v=SIDE,G=blank(v.w,v.h),L=PADDLE[step];
+  [1,2].forEach(i=>legP(G,L[i][0],v.top,v.bottom,'d',L[i][2],L[i][1]));
+  sp(G,v.tail[tf]);sp(G,v.body);sp(G,v.shade);
+  [0,3].forEach(i=>legP(G,L[i][0],v.top+1,v.bottom,'b',L[i][2],L[i][1]));
+  stamp(G,expr?turnedFace(expr):HEAD_R(),v.hx);G.cx=v.cx;return G}
+
 /* ================= 趴与睡：脸贴地 ================= */
 // 斜着趴：头朝镜头，下巴搁在两只前爪上；身体往右后方延伸，耳朵始终衬在背景上。头和端坐时同一位置
 const HUMP=[{6:"12:oooooooo",7:"10:oobbgbbgbboo",8:"9:obbbbgbbgbbbbo",9:"9:obbbbbbbbbbbbbo",10:"9:obbbbbbbbbbbbbbo",11:"9:obbbbbbbbbbbbbbo",12:"9:obbbbbbbbbbbbbbo",13:"10:ooooooooooooooo"},
@@ -280,6 +289,9 @@ const POSE={
   sit:(t,tf,o=0,ex)=>({G:ex&&ex!=='normal'?sitFace(ex,tf):sit(tf),cx:9.5,blink:blinkAt(t,o)}),
   walkR:(t,tf,o=0,ex)=>{const G=sideWalk(Math.floor(t*8+o),tf,{expr:faceOr(ex,null)});return{G,cx:G.cx,blink:blinkAt(t,o)}},
   walkL:(t,tf,o=0,ex)=>{const G=sideWalk(Math.floor(t*8+o),tf,{expr:faceOr(ex,null)});return{G,cx:G.cx,flip:true,blink:blinkAt(t,o)}},
+  // 贴地飞（戴着金羽毛走路时换成它）：比走路慢一点地划
+  flyR:(t,tf,o=0,ex)=>{const G=sideFly(Math.floor(t*7+o),tf,{expr:faceOr(ex,null)});return{G,cx:G.cx,blink:blinkAt(t,o)}},
+  flyL:(t,tf,o=0,ex)=>{const G=sideFly(Math.floor(t*7+o),tf,{expr:faceOr(ex,null)});return{G,cx:G.cx,flip:true,blink:blinkAt(t,o)}},
   lick:(t,tf)=>({G:st_lick(LICK_SEQ[Math.floor(t*5)%LICK_SEQ.length],tf),cx:9.5}),
   lie:(t,tf,o=0,ex)=>({G:st_lie({expr:faceOr(ex,'lookUp'),tail:tf}),cx:9.5,blink:blinkAt(t,o)}),
   sleep:(t,tf,o=0)=>({G:st_lie({expr:'sleepSnug',ears:1,bubble:Math.floor((t+o)*1.6)%4,breathe:Math.floor((t+o)*.9)%2,zz:Math.floor((t+o)*1.2)%2,tail:tf}),cx:9.5}),

@@ -39,8 +39,8 @@ const mkCanvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.heig
 const WLOCAL=new Set(['pounce','lick','stretch','slowBlink']);   // 一次性动作：从动作开始那一刻播放
 // 每个姿态的"帧号"：和 cat-sprites.js 里 POSE 的取帧方式一一对应；帧号相同，画出来就一样
 const FK=(()=>{const bl=(T,o)=>((T+o)*1000%3000)<150?1:0,f=(T,r)=>Math.floor(T*r)%2,ST=SLOW.reduce((s,x)=>s+x[1],0);
-  const walk=(T,tf,o,e)=>(Math.floor(T*8+o)%4)+e+tf+bl(T,o);
-  return{sit:(T,tf,o,e)=>e+tf+bl(T,o),walkR:walk,walkL:walk,lick:(T,tf)=>LICK_SEQ[Math.floor(T*5)%LICK_SEQ.length]+'.'+tf,lie:(T,tf,o,e)=>e+tf+bl(T,o),
+  const walk=(T,tf,o,e)=>(Math.floor(T*8+o)%4)+e+tf+bl(T,o),fly=(T,tf,o,e)=>(Math.floor(T*7+o)%4)+e+tf+bl(T,o);
+  return{sit:(T,tf,o,e)=>e+tf+bl(T,o),walkR:walk,walkL:walk,flyR:fly,flyL:fly,lick:(T,tf)=>LICK_SEQ[Math.floor(T*5)%LICK_SEQ.length]+'.'+tf,lie:(T,tf,o,e)=>e+tf+bl(T,o),
     sleep:(T,tf,o)=>''+Math.floor((T+o)*1.6)%4+Math.floor((T+o)*.9)%2+Math.floor((T+o)*1.2)%2+tf,meow:(T,tf,o)=>(Math.floor((T+o)*2.5)%3?1:0)+'.'+tf,
     happy:T=>f(T,4),hold:T=>f(T,2.5),alert:T=>f(T,3),pounce:T=>POUNCE_SEQ[Math.floor(T*5.5)%POUNCE_SEQ.length],swing:T=>Math.round(21+Math.sin(T*2.6)*4),
     bat:T=>{const k=(T*1.1)%1;return k<.22?'h':14+Math.round(Math.sin((k-.22)/.78*Math.PI)*4)},kick:T=>f(T,4),belly:T=>f(T,4),cocoon:T=>f(T,6),wrapped:T=>f(T,5),
@@ -54,14 +54,20 @@ function catImg(k,T,tf,o,e,pi,yi,flip){const f=FK[k],key=k+'|'+(f?f(T,tf,o,e):T.
   let cc=null,by=-1,xs=[];G.forEach((r,y)=>r.forEach((ch,x)=>{if(ch!=='c')return;if(y>by){by=y;xs=[x]}else if(y===by)xs.push(x)}));if(by>=0){const rx=xs[Math.floor((xs.length-1)/2)];cc=[flip?w-1-rx:rx,by]}
   s={cv,w,h,cx:P.cx,dy:P.dy||0,cc};if(SPR.size>=SPR_MAX){let n=0;for(const k2 of SPR.keys()){SPR.delete(k2);if(++n>=400)break}}SPR.set(key,s);return s}
 let CAT_DECO=null;   // world-charms.js 填：画完一只猫以后画它的挂坠、水晶泡泡，CAT_DECO(ctx, 猫, 脚底 x, y, 贴图左上 dx, top, 贴图, t, 姿态)
+let CAT_WINGS=null;  // world-wings.js 填：戴着终极彩蛋金羽毛的猫 —— on(猫)、hover(猫,姿态,t) 离地几格、wrap(贴图,姿态,flip,t,猫) 带翅膀的贴图、halo(…) 金色光环、shadow(ctx,x,y) 地上的影子
 // 画一只猫（脚底 x,y 为整数），返回头顶的 y
 // rainbowUntil：彩虹色（轮着换毛色）；puffUntil：吹风机吹完、被鲨鱼吓到，毛炸成一圈（world-b1.js）；charm、glow、bubble：挂坠、项圈发光、水晶泡泡（world-charms.js）
-function drawCat3(ctx,c,x,y,t,ol){const k=c.k,loc=WLOCAL.has(k)&&c.t0!=null,tt=loc?t-c.t0:t,o=loc?0:(c.o||0),tf=(Math.floor(tt*2)+c.pal)%2,T=tt+o,e=c.ex??c.def;
+// 戴着金羽毛（CAT_WINGS.on）：走路换成贴地飞（flyR / flyL，离地 hover 格，地上一团影子），贴图换成带翅膀的，描金色光环（代替你的黄色描边）
+function drawCat3(ctx,c,x,y,t,ol){const W=!!(CAT_WINGS&&CAT_WINGS.on(c)),k=W&&(c.k==='walkR'||c.k==='walkL')?'fly'+c.k.slice(4):c.k,loc=WLOCAL.has(k)&&c.t0!=null,tt=loc?t-c.t0:t,o=loc?0:(c.o||0),tf=(Math.floor(tt*2)+c.pal)%2,T=tt+o,e=c.ex??c.def;
   const pal=c.rainbowUntil>t?RAINBOW[Math.floor(t*6+c.id)%RAINBOW.length]:c.pal;
-  const f0=k==='walkL'||(c.face==='L'&&FACING.has(k)),flip=c.mirror?!f0:f0,yi=c.yarn!=null&&k!=='sit'?c.yarn:null,s=catImg(k,T,tf,o,e,pal,yi,flip);
-  const top=Math.round(y-s.h+s.dy),dx=flip?Math.round(x+s.cx-1)-(s.w-1):Math.round(x-s.cx),a=c.alpha??1;if(a<1)ctx.globalAlpha=a;
+  const f0=k==='walkL'||k==='flyL'||(c.face==='L'&&FACING.has(k)),flip=c.mirror?!f0:f0,yi=c.yarn!=null&&k!=='sit'?c.yarn:null,s=catImg(k,T,tf,o,e,pal,yi,flip);
+  const hv=W?CAT_WINGS.hover(c,k,t):0;c._hv=hv;
+  const top=Math.round(y-s.h+s.dy)+hv,dx=flip?Math.round(x+s.cx-1)-(s.w-1):Math.round(x-s.cx),a=c.alpha??1;if(a<1)ctx.globalAlpha=a;
   if(c.puffUntil>t)ctx.drawImage(fluffOf(s,PAL[pal]),dx-3,top-3);
-  if(ol)ctx.drawImage(outlineOf(s,ol),dx-1,top-1);ctx.drawImage(s.cv,dx,top);if(CAT_DECO&&(c.charm||c.glow||c.bubble))CAT_DECO(ctx,c,x,y,dx,top,s,t,k);if(a<1)ctx.globalAlpha=1;if(ol)c._ring=[ringOf(s,ol),dx-1,top-1];return top}
+  let w=null;if(W){if(hv)CAT_WINGS.shadow(ctx,x,y);w=CAT_WINGS.wrap(s,k,flip,t,c);CAT_WINGS.halo(ctx,w,dx-w.ox,top-w.oy,t,c);ctx.drawImage(w.cv,dx-w.ox,top-w.oy)}
+  else{if(ol)ctx.drawImage(outlineOf(s,ol),dx-1,top-1);ctx.drawImage(s.cv,dx,top)}
+  if(CAT_DECO&&(c.charm||c.glow||c.bubble))CAT_DECO(ctx,c,x,y,dx,top,s,t,k);if(a<1)ctx.globalAlpha=1;
+  if(ol)c._ring=w?[ringOf(w,ol),dx-w.ox-1,top-w.oy-1]:[ringOf(s,ol),dx-1,top-1];return top}
 // 炸毛：贴图往外胀三圈（最外一圈描边色，里面两圈浅毛色），画在猫后面；按贴图算一次，存在贴图上
 function fluffOf(s,P){const key=P.light+P.outline;if(s.fl&&s.flk===key)return s.fl;const cv=mkCanvas(s.w+6,s.h+6),x=cv.getContext('2d'),blob=(r,col)=>{const o=mkCanvas(s.w+6,s.h+6),q=o.getContext('2d');
     for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++)if(Math.abs(a)+Math.abs(b)<=r+(r>2?0:1))q.drawImage(s.cv,3+a,3+b);q.globalCompositeOperation='source-in';q.fillStyle=col;q.fillRect(0,0,o.width,o.height);return o};
@@ -206,7 +212,7 @@ A.nearCatOf=nearCatOf;
 const BG=mkCanvas(W,H);{const o=C;use(BG.getContext('2d'));M.bg();use(o)}
 function bake(p,v){const cv=mkCanvas(p.w,p.h),x=cv.getContext('2d'),o=C;use(x);x.translate(-p.x,-p.y);p.draw(0,S);use(o);p._v=v;return cv}
 function drawProp(p){if(p.live){p.draw(now,S);return}const v=p.ver?String(p.ver(S)):'';if(!p._c||p._v!==v)p._c=bake(p,v);C.drawImage(p._c,p.x,p.y)}
-function drawCarry(c,x,y,top){if(!c.carry)return;const walk=c.k.startsWith('walk'),mx=x+(walk?(c.k==='walkL'?-7:7):0),my=walk?y-8:top+11;
+function drawCarry(c,x,y,top){if(!c.carry)return;const walk=c.k.startsWith('walk'),mx=x+(walk?(c.k==='walkL'?-7:7):0),my=walk?y-8+(c._hv||0):top+11;   // _hv：贴地飞时离地几格
   if(c.carry.kind)knit(c.carry.kind,mx,my,c.carry.ci);else if(walk)yarnBall(mx,my+2,2,c.carry.ci)}
 let lastView={x:0,y:0,w:480,h:270},drawN=0;
 function render(cx,vx,vy,vw,vh,{marker=true}={}){vx=Math.round(vx);vy=Math.round(vy);const o=C;use(cx);cx.imageSmoothingEnabled=false;

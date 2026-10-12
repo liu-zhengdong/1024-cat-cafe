@@ -1,5 +1,5 @@
 /* 1024 猫咖 · 彩蛋的挂坠（设计见 docs/店内设计.md 第四节"找到了有奖励"）。依赖 scene-kit.js、cat-sprites.js、planet-art.js（PLA.fish）；world-play.js 的 drawCat3 会调 CAT_DECO。
-   - CHARMS：每个彩蛋一枚，顺序就是联机标志位里的编号（1～8，0 没戴），和 world-eggs.js 的 EGGS 一一对应。
+   - CHARMS：每个彩蛋一枚，顺序就是联机标志位里的编号（1～9，0 没戴），和 world-eggs.js 的 EGGS 一一对应；第 9 枚金羽毛是终极彩蛋的，戴着它长翅膀（world-wings.js）。
    - 画法：三格宽、四行高；第一行是挂环，正好落在项圈正中间那一格上，下面三行挂在胸前，外面描一圈猫的描边色（挂环那一行不描，免得盖住项圈）。
    - 猫身上：c.charm 戴着哪枚（彩蛋的键），c.glow 项圈发光（去过猫猫星球），c.bubble 身边飘着水晶泡泡（1 普通、2 金色）。
      你的猫由 world-eggs.js、world-crystal.js 设好；别的真人的猫由 world-online.js 按标志位设。店猫、补位的猫都没有。
@@ -12,7 +12,8 @@ const CHARMS={
   disco:{n:'迪斯科小球',d:'一颗小镜面球，中间那一点轮着换颜色',g:[".k.",".s.","sXs",".s."],p:{k:'#c8b070',s:'#d0d8e8'},X:['#ff6ad5','#6ad5ff','#ffe06a']},
   clock:{n:'小铃铛',d:'一只金色的小铃铛',g:[".y.","yyy","YYY",".o."],p:{y:'#ffd84a',Y:'#c8901e',o:'#5a3a1a'}},
   konami:{n:'彩虹徽章',d:'三道彩虹色',g:[".k.","rrr","yyy","bbb"],p:{k:'#c8b070',r:'#e8503a',y:'#ffd84a',b:'#4a9ae8'}},
-  credits:{n:'小红点',d:'一颗微微发光的红珠子',g:[".k.",".R.","RrR",".R."],p:{k:'#c8b070',R:'#c82828',r:'#ff6a5a'},glow:'#ff4a4a'}};
+  credits:{n:'小红点',d:'一颗微微发光的红珠子',g:[".k.",".R.","RrR",".R."],p:{k:'#c8b070',R:'#c82828',r:'#ff6a5a'},glow:'#ff4a4a'},
+  ultimate:{n:'金羽毛',d:'一根金色的小羽毛',g:[".k.","ww.","wyy",".yY"],p:{k:'#c8b070',w:'#fff6c8',y:'#ffd84a',Y:'#c8901e'},spark:1,glow:'#ffd84a'}};
 const CHARM_KEYS=Object.keys(CHARMS);   // 下标 + 1 就是联机里的编号
 // 一枚挂坠的画（ol 描边色，f 第几帧：迪斯科球的颜色、水晶的闪光）。缓存成小画布
 const CHC={};
@@ -23,7 +24,7 @@ function charmImg(key,ol,f=0){const k=key+'|'+ol+'|'+f;if(CHC[k])return CHC[k];c
   return CHC[k]=cv}
 // 项圈正中间那一格：最低的一行项圈（'c'）里取中间那一格，[x, y]；没有项圈为 null（world-play.js 的贴图缓存里同样这么算）
 function collarOf(G){let by=-1,xs=[];G.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch!=='c')return;if(y>by){by=y;xs=[x]}else if(y===by)xs.push(x)}));return by<0?null:[xs[Math.floor((xs.length-1)/2)],by]}
-const charmFrame=(key,t)=>key==='disco'?Math.floor(t*3):key==='planet'?(t%2.6<.25?1:0):0;
+const charmFrame=(key,t)=>key==='disco'?Math.floor(t*3):key==='planet'?(t%2.6<.25?1:0):key==='ultimate'?(t%1.9<.22?1:0):0;
 function charmCanvas(key){return charmImg(key,'#3a2630',0)}
 // 水晶泡泡：一圈淡青的泡泡，里面一条发光的小水晶鱼，一上一下地晃
 function bubblePx(x,y,t,gold){x=Math.round(x);y=Math.round(y);const r=6,rim=gold?'#fff0a0':'#bff4ff';

@@ -14,7 +14,7 @@ const KINDS=['scarf','hat','mitten','sock','sweater','flag'],TOYS=['cup','sugar'
 // 同一种消息最短间隔（秒）；回球、接球不限（它们受传球事务约束，丢了球就没了）
 const GAP=new Map([['emo',.45],['ph',.9],['rub',.45],['pass',.45],['hang',2.5],['s',.07],['v',.5],['egg',2],['tank',3]]);
 // 彩蛋的键（js/world-eggs.js 的 EGGS，顺序也一样）；每只猫最多往大鱼缸里放几条水晶鱼（js/world-crystal.js）
-const EGG_KEYS=S.EGG_KEYS,TANK_MAX=3;
+const EGG_KEYS=S.EGG_KEYS,TANK_MAX=3;   // EGG_KEYS 最后一个是终极彩蛋 ultimate
 const SPR=vm.runInNewContext(fs.readFileSync(path.join(S.ROOT,'js/cat-sprites.js'),'utf8')+';({pose:new Set(Object.keys(POSE)),face:new Set(Object.keys(FACES))})',{console,Math});
 
 const conns=new Set(),byCat=new Map(),passes=new Map();let joins=[],leaves=[],tickN=0,nseq=0;
@@ -98,7 +98,8 @@ const ON={
     const f=typeof m.from==='string'&&byCat.get(m.from);if(f&&f!==c)send(f,{t:'woven',id:c.cat.id,kind:m.kind,ci:m.ci})},
   // 第一次找到一个彩蛋：同一只猫同一个彩蛋只算一次；全店在线的猫都收到（只带键和一共几只猫找到，新闻里不说是哪个由前端决定）
   //（存档先到、已经算过了的：一分钟之内照样告诉大家，再晚的就不说了，免得有人反复发）
-  egg(c,m){if(!EGG_KEYS.includes(m.k))return;const E=c.cat.eggs=c.cat.eggs||{},W=S.db.world,now=Date.now();if(E[m.k]){if(now-E[m.k]>60000)return}else{E[m.k]=now;W.eggs[m.k]=(W.eggs[m.k]||0)+1;S.save()}
+  // 终极彩蛋（ultimate）：另外八个服务端都记着才收；收到的人正上方出"全店广播"（前端按键决定）
+  egg(c,m){if(!EGG_KEYS.includes(m.k))return;const E=c.cat.eggs=c.cat.eggs||{},W=S.db.world,now=Date.now();if(!S.eggOk(c.cat,m.k))return;if(E[m.k]){if(now-E[m.k]>60000)return}else{E[m.k]=now;W.eggs[m.k]=(W.eggs[m.k]||0)+1;S.save()}
     const msg={t:'egg',id:c.cat.id,k:m.k,n:W.eggs[m.k]||0};for(const o of conns)if(o.cat)send(o,msg)},
   // 往吧台的大鱼缸里放一条水晶鱼：全店共用一口缸。k 是这只猫一共放过第几条（最多三条）：比算过的多才加（存档先到、已经补算过的不重复加）
   tank(c,m){const k=Math.min(TANK_MAX,Number.isInteger(m.k)?m.k:0),had=c.cat.tank||0;if(k<1)return;const W=S.db.world;

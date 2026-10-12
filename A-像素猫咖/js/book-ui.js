@@ -2,6 +2,7 @@
    依赖 dialog-ui.js（tipsHTML）、quest-bank.js（TIPS、CAT_CARDS）、world4-guide.js（GUIDE）、fish-art.js、world-charms.js。
    - 三页：店里（119 样）、鱼谱（十种）、彩蛋（八个）。最上面一排页签，各写着有了几个；点页签或按 ←→ 翻页；打开时停在上次看的那一页。
    - 彩蛋：谜面；"要点提示"点开是说得明白的一句和"带我去"；猫猫星球画四格进度、零件一样一行；找到了的写经过、挂坠和"戴上"；联机时写已经有几只猫找到。
+     八个下面单独一整行"终极彩蛋"：没集齐写三行进度（店里、鱼谱、彩蛋，点一下翻到那一页），集齐了写经过和金羽毛（world-wings.js）。
    - BOOK.open(game, page)、BOOK.close()、BOOK.isOpen()、BOOK.key(e)、BOOK.click(e)（app.js 接上）；BOOK.pix(画布, 倍数, 缓存名)：像素画按整数倍放大成 <img>。 */
 const BOOK=(()=>{
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -45,7 +46,7 @@ function pageFish(A){const L=A.guide.fishLog(),M=A.guide.games().fishMax||{},nin
 
 /* ---------- 彩蛋：谜面 → 要点提示 → 带我去；找到了的写经过和挂坠 ---------- */
 function pageEgg(A){const E=A.eggs,cnt=E.counts,worn=E.worn();
-  let h='<p class="lead">店里藏着八个彩蛋。找到一个，项圈上多一枚挂坠（一次戴一枚，别的玩家也看得到）；去过猫猫星球的猫，项圈会一直发光。</p><div class="eggs">';
+  let h='<p class="lead">店里藏着八个彩蛋。找到一个，项圈上多一枚挂坠（一次戴一枚，别的玩家也看得到）；去过猫猫星球的猫，项圈会一直发光。八个之外，还有一个终极彩蛋。</p><div class="eggs">';
   h+=E.list().map(e=>{const ch=CHARMS[e.key],n=cnt&&cnt[e.key],who=n?`<em class="who">已经有 ${n} 只猫找到</em>`:'';
     if(e.found){const on=worn===e.key;
       return `<div class="eg on"><span class="st">★</span><div><b>${esc(e.n)}</b><small>${e.at>1?day(e.at)+' 找到':''}</small>${who}<p class="w">${esc(e.what)}</p>`+
@@ -57,8 +58,16 @@ function pageEgg(A){const E=A.eggs,cnt=E.counts,worn=E.worn();
     if(open&&I.tip)b+=`<p class="tp"><span>${esc(I.tip)}</span>${I.go?`<button class="lbtn sm" data-egggo="${e.key}">带我去</button>`:''}</p>`;
     else if(!open)b+=`<button class="lbtn sm tipb" data-tip="${e.key}">要点提示</button>`;
     if(ch)b+=`<p class="rwd">${pix(charmCanvas(e.key),4,'c-'+e.key)}<span>${e.key==='planet'?'找到了：水晶项链，项圈一直发光，还能把水晶鱼带回地面':'找到了：项圈上多一枚挂坠'}</span></p>`;
-    return `<div class="eg off"><span class="st">☆</span><div><b>？？？</b>${who}${b}</div></div>`}).join('')+'</div>';
+    return `<div class="eg off"><span class="st">☆</span><div><b>？？？</b>${who}${b}</div></div>`}).join('')+finalCard(A)+'</div>';
   return h}
+// 终极彩蛋：没集齐写三行进度（点哪一行翻到哪一页），集齐了写经过、金羽毛和"戴上"
+function finalCard(A){const E=A.eggs,U=EGGS.ultimate,ch=CHARMS.ultimate,n=E.counts&&E.counts.ultimate,who=n?`<em class="who">已经有 ${n} 只猫集齐</em>`:'',at=(A.guide.eggs().ultimate||{}).at;
+  if(E.has('ultimate')){const on=E.worn()==='ultimate';
+    return `<div class="eg on final"><span class="st">★</span><div><b>${esc(U.n)}</b><small>终极彩蛋${at>1?' · '+day(at)+' 集齐':''}</small>${who}<p class="w">${esc(U.what)}</p>`+
+      `<div class="rw">${pix(charmCanvas('ultimate'),5,'c5-ultimate')}<span><b>${esc(ch.n)}</b>${esc(ch.d)}；戴着它长出一对翅膀，走路改成贴地飞，全身一圈金色的光</span><button class="lbtn sm${on?' on':''}" data-wear="${on?'':'ultimate'}">${on?'戴着':'戴上'}</button></div></div></div>`}
+  const p=E.progress(),row=(tab,nm,[a,t])=>`<li class="${a>=t?'got':''}" data-tab="${tab}"><span>${nm}</span><i><b style="width:${Math.round(a/Math.max(1,t)*100)}%"></b></i>${a} / ${t}</li>`;
+  return `<div class="eg off final"><span class="st">✦</span><div><b>？？？</b><small>终极彩蛋</small>${who}<p class="w">${esc(U.hint)}</p><ul class="prog">${row('all','店里',p.all)}${row('fish','鱼谱',p.fish)}${row('egg','彩蛋',p.egg)}</ul>`+
+    `<p class="rwd">${pix(charmCanvas('ultimate'),4,'c-ultimate')}<span>找到了：一枚很特别的挂坠</span></p></div></div>`}
 
 function render(){if(!game)return;const A=game.A,C2=counts(A),[a,t]=C2[page],el=$('bookov'),sc=el.scrollTop;
   let h=`<div class="top"><b>图鉴</b><div class="tabs">${PAGES.map(p=>`<button class="tab${p===page?' on':''}" data-tab="${p}">${PN[p]}<i>${C2[p][0]} / ${C2[p][1]}</i></button>`).join('')}</div>`+

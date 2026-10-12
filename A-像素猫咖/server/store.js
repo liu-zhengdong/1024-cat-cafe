@@ -21,10 +21,12 @@ const SETTINGS0={bots:null,entry:true,notice:'',noticeAt:0};
 const db={cats:{},tokens:{},world:{hung:0,days:{},tree:[]},draws:[],settings:{...SETTINGS0}};
 try{const j=JSON.parse(fs.readFileSync(DB_FILE,'utf8'));Object.assign(db,j);db.world={hung:0,days:{},tree:[],...(j.world||{})};db.draws=j.draws||[];db.settings={...SETTINGS0,...(j.settings||{})}}catch(e){}
 // 彩蛋、大鱼缸的计数：第一次（旧的库里没有）按名册里每只猫存档里的记录补算一遍，以后跟着联机消息加
-const EGG_KEYS=['planet','ninelives','shark','milk','disco','clock','konami','credits'];
+// ultimate 是终极彩蛋（全成就）：另外八个这只猫都算过了才算（联机消息、存档补算都一样），免得随手发一条就全店广播
+const EGG_KEYS=['planet','ninelives','shark','milk','disco','clock','konami','credits','ultimate'],EGG_REG=EGG_KEYS.filter(k=>k!=='ultimate');
+const eggOk=(c,k)=>k!=='ultimate'||EGG_REG.every(x=>c.eggs&&c.eggs[x]);
 // 存档里记着的、计数里还没算上的（比如断线的时候找到的）补上：同一只猫同一个彩蛋只算一次，大鱼缸每只猫最多算三条
 function syncEggs(c){const g=(c.state&&c.state.g&&c.state.g.eggs)||{},W=db.world,E=c.eggs=c.eggs||{};let ch=false;
-  for(const k of EGG_KEYS)if(g[k]&&g[k].at&&!E[k]){E[k]=g[k].at;W.eggs[k]=(W.eggs[k]||0)+1;ch=true}
+  for(const k of EGG_KEYS)if(g[k]&&g[k].at&&!E[k]&&eggOk(c,k)){E[k]=g[k].at;W.eggs[k]=(W.eggs[k]||0)+1;ch=true}
   const tk=g.planet&&Array.isArray(g.planet.tank)?g.planet.tank.slice(0,3):[],had=c.tank||0;if(tk.length>had){W.crystal.n+=tk.length-had;W.crystal.gold+=tk.slice(had).filter(v=>v===1).length;c.tank=tk.length;ch=true}
   return ch}
 if(!db.world.eggs||!db.world.crystal){db.world.eggs={};db.world.crystal={n:0,gold:0};for(const c of Object.values(db.cats)){c.eggs={};c.tank=0;syncEggs(c)}}
@@ -66,4 +68,4 @@ function setSettings(b){const g=db.settings,next={};
 function adminKey(){if(process.env.ADMIN_KEY)return process.env.ADMIN_KEY;try{const k=fs.readFileSync(KEY_FILE,'utf8').trim();if(k)return k}catch(e){}
   const k=crypto.randomBytes(12).toString('base64url');fs.mkdirSync(DATA,{recursive:true});fs.writeFileSync(KEY_FILE,k+'\n',{mode:0o600});return k}
 
-module.exports={ROOT,DATA,ACC,EGG_KEYS,syncEggs,db,key,clean,okLook,sha,byId,reindex,save,flush,offer,issue,who,revoke,rename,pub,pubEntry,today,pubSettings,setSettings,adminKey};
+module.exports={ROOT,DATA,ACC,EGG_KEYS,eggOk,syncEggs,db,key,clean,okLook,sha,byId,reindex,save,flush,offer,issue,who,revoke,rename,pub,pubEntry,today,pubSettings,setSettings,adminKey};

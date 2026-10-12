@@ -216,6 +216,7 @@
   .disc>p{margin:0;font-size:var(--fs-s);line-height:var(--lh-s);color:#d8cce4}.disc.egg>p{font-size:var(--fs-m);line-height:var(--lh-m);color:var(--ink)}
   .disc .tipsb{margin-top:12px}.disc:not(.show) .more{pointer-events:none}
   .disc.egg{--wl:var(--acc);--wd:#3a2a08;background:#2c2030}
+  .disc.egg.final{--wl:#fff3b0;--wd:#5a3a08;background:#36281c}.disc.egg.final h5{color:#fff3b0}   /* 终极彩蛋：更亮的一圈金 */
   .reply{--wl:var(--pink)}.reply h5{color:var(--pink)}
   /* 店里的公告（组织者在后台发的）：和人类回信同一个位置，金边、铃铛 */
   .reply.notice{--wl:var(--acc);--wd:#3a2a08;background:#2c2030}.reply.notice h5{color:var(--acc)}.reply.notice>p{margin:0;font-size:var(--fs-m);line-height:var(--lh-m);color:var(--ink);overflow-wrap:anywhere}
@@ -267,6 +268,12 @@
   .bookov .e.off{--cc:#2a2036;gap:4px;color:var(--dim)}.bookov .e.off .ic{color:#6a5a7a}.bookov .e.off small{color:#6a5a7a}
   .bookov .eg{background:#2a2034;box-shadow:inset 0 0 0 var(--d2) #4a3a2a}
   .bookov .eg.on{box-shadow:inset 0 0 0 var(--d2) var(--acc)}
+  /* 终极彩蛋：八个下面单独一整行，金边；三行进度，点一下翻到那一页 */
+  .bookov .eg.final{grid-column:1/-1;background:#32261c;box-shadow:inset 0 0 0 var(--d2) #c8901e}.bookov .eg.final.on{box-shadow:inset 0 0 0 var(--d2) #fff3b0}
+  .bookov .eg.final .st{color:#ffd84a}.bookov .eg.final.off b{color:#e8c880}
+  .bookov .eg .prog{display:grid;gap:4px;margin:8px 0 0;padding:0;list-style:none}
+  .bookov .eg .prog li{display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--ink)}.bookov .eg .prog li.got{color:var(--ok)}
+  .bookov .eg .prog li span{flex:none;width:calc(var(--fs-m)*3)}.bookov .eg .prog li i{flex:1;max-width:calc(var(--fs-m)*12);height:calc(var(--px-s)*4);background:#3a2c4c}.bookov .eg .prog li i b{display:block;height:100%;margin:0;background:var(--acc)}
   .bookov .eg .st{flex:none;font-size:var(--fs-m);line-height:var(--lh-m);color:var(--acc)}.bookov .eg.off .st{color:#5a4a6a}
   .bookov .eg.off b{color:var(--dim)}.bookov .eg.off p{color:var(--sub)}
   .bookov .eg .cells{display:flex;gap:4px;margin-top:8px}.bookov .eg .cells i{width:calc(var(--px-s)*12);height:calc(var(--px-s)*8);background:#3a2c4c}.bookov .eg .cells i.on{background:var(--acc)}
@@ -399,7 +406,7 @@
 /* 加载器：并行下载、按顺序执行；进度是真的（脚本到齐 → 建好店 → 认出你），显示上最快也要走一秒，让小猫把线球追完 */
 (()=>{
 const FILES=[['cat-sprites.js','把猫叫醒……'],['pixel-text.js'],['scene-kit.js','搬桌椅……'],['world-kit.js'],['world4-kit.js'],['house-kit.js'],['outdoor-kit.js'],['skyline-art.js'],['props-kit.js'],['b1-kit.js'],['planet-art.js'],['fish-art.js'],['quest-bank.js','把毛线球装进篮子……'],
-  ['map-1f.js','铺地板、刷墙……'],['map-2f.js','搭楼梯……'],['map-roof.js','把星星挂上天……'],['map-b1.js','给舞池接上电……'],['map-planet.js'],['world-play.js','店猫各就各位……'],['world-acts.js'],['world4-things.js','摆好店里的东西……'],['world4-quest.js'],['world4-guide.js'],['world-eggs.js'],['world-charms.js'],['world4-desk.js'],
+  ['map-1f.js','铺地板、刷墙……'],['map-2f.js','搭楼梯……'],['map-roof.js','把星星挂上天……'],['map-b1.js','给舞池接上电……'],['map-planet.js'],['world-play.js','店猫各就各位……'],['world-acts.js'],['world4-things.js','摆好店里的东西……'],['world4-quest.js'],['world4-guide.js'],['world-eggs.js'],['world-charms.js'],['world-wings.js'],['world4-desk.js'],
   ['map-tree.js','给巨树缠毛线……'],['world-floors.js'],['world-cafe.js','煮咖啡……'],['world-river.js','往河里放鱼……'],['world4-vista-art.js','擦橱窗……'],['world4-vista.js'],['world-roof.js'],['world-games.js','摆好抓娃娃机……'],['claw-art.js'],['world-more.js','给秋千系上绳子……'],['world-social.js'],['world-b1.js','往温泉里放热水……'],['cinema.js'],['world-rocket.js'],['world-crystal.js'],['world-ambient.js'],['world4-arrive.js'],['world-online.js'],['dialog-ui.js','开门……'],['sound.js'],['account.js'],['net.js'],
   ['entry-art.js'],['entry-clowder.js'],['entry-name.js'],['entry-gacha.js'],['entry-tutorial.js'],['entry.js'],['book-ui.js'],['app.js']];
 const msg=document.getElementById('bootmsg'),cv=document.getElementById('bootcv'),x=cv.getContext('2d');let real=0,shown=0,label='开门……',ready=false,failed=false,t0=performance.now(),doneCb=null;

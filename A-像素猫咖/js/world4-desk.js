@@ -68,7 +68,7 @@ const BACK=[{id:'back',t:'回去'},{id:'close',t:'再逛逛',key:'Esc'}];
 let eggI=0;   // 店里有彩蛋吗：说到第几个（换一个）
 function page(id){const q=A.Q&&A.Q.cur,ball=me.hold&&!me.hold.knit;let spec,pick=null;
   if(id==='menu'){const items=[...(q&&ball?[{id:'quest',t:'我叼着的这颗球，该怎么解？',sub:'再看一眼便签'}]:[]),
-      ...(G.disc.yarntree?[]:[{id:'tree',t:'听说店里有棵大树？',sub:'就在咖啡厅正中间，我带你去'}]),{id:'lotto',t:'怎么参加抽奖？',sub:lottoSub()},{id:'games',t:'有什么小游戏？',sub:'七个，能一直玩下去'},{id:'fun',t:'这附近有什么好玩的？',sub:'我带你过去'},{id:'floors',t:'楼上楼下有什么？',sub:'二楼、屋顶，还有地下'},{id:'eggs',t:'店里有彩蛋吗？',sub:A.eggs.count()?`你找到了 ${A.eggs.count()} / ${A.eggs.total} 个`:'八个，找到了有挂坠'},{id:'me',t:'我是哪只猫？'},{id:'ball',t:'毛线球是什么？怎么解？'},
+      ...(G.disc.yarntree?[]:[{id:'tree',t:'听说店里有棵大树？',sub:'就在咖啡厅正中间，我带你去'}]),{id:'lotto',t:'怎么参加抽奖？',sub:lottoSub()},{id:'games',t:'有什么小游戏？',sub:'七个，能一直玩下去'},{id:'fun',t:'这附近有什么好玩的？',sub:'我带你过去'},{id:'floors',t:'楼上楼下有什么？',sub:'二楼、屋顶，还有地下'},{id:'eggs',t:'店里有彩蛋吗？',sub:A.eggs.count()>=A.eggs.total?(A.eggs.has('ultimate')?'连终极彩蛋都找到了':'八个都找到了 · 还有最后一个'):A.eggs.count()?`你找到了 ${A.eggs.count()} / ${A.eggs.total} 个`:'八个，找到了有挂坠'},{id:'me',t:'我是哪只猫？'},{id:'ball',t:'毛线球是什么？怎么解？'},
       {id:'cafe',t:'猫猫咖啡馆是什么？',sub:'官网、GitHub、内源主页'},{id:'who',t:'你是谁？'},{id:'book',t:'把图鉴给我看看',sub:'全店能玩的都在里面（B）'}];
     const hi=G.count()?rnd(['又见面啦～今天想玩点什么？','想去哪儿？我带你去。','有什么想问的？']):'欢迎光临！第一次来吧？想玩什么、想找谁，问我就好。';
     spec={blocks:[say1(hi),...(notice()?[{k:'text',t:'店里的公告：'+notice()}]:[]),{k:'choices',cols:2,items}],tip:tipOf('concierge'),acts:[{id:'close',t:'再逛逛',key:'Esc'}]};pick=i=>go(items[i].id)}
@@ -97,7 +97,11 @@ function page(id){const q=A.Q&&A.Q.cur,ball=me.hold&&!me.hold.knit;let spec,pick
       {k:'text',t:'上下楼走楼梯间的楼梯：上二楼的楼梯在东墙边，下地下的楼梯口在西南角，挂着一块霓虹牌。走进楼梯口就上去或者下去了；也可以在咖啡厅爬上巨树，一路爬到屋顶。右上角的小地图只画你在的那一层。'}],tip:tipOf('concierge'),acts:BACK};
   // 店里有彩蛋吗：说一个你还没找到的（先说猫猫星球，说的是下一步），可以带你去、换一个（docs/店内设计.md 第四节"找得到"）
   else if(id==='eggs'){const E=A.eggs,L=E.list().filter(e=>!e.found);
-    if(!L.length)spec={blocks:[say1('彩蛋？八个你都找到了吧……你知道的比我还多。')],tip:tipOf('concierge'),acts:BACK};
+    // 八个都找到了：说起终极彩蛋（图鉴三页都点亮），说还差什么，带你去看图鉴（world-wings.js）
+    if(!L.length){if(E.has('ultimate'))spec={blocks:[say1('翅膀都长出来了……你知道的比我还多。')],tip:tipOf('concierge'),acts:BACK};
+      else{const p=E.progress(),miss=[p.all[1]>p.all[0]?`店里还有 ${p.all[1]-p.all[0]} 样没玩过`:'',p.fish[1]>p.fish[0]?`鱼谱还差 ${p.fish[1]-p.fish[0]} 种`:''].filter(Boolean).join('，'),items=[{id:'book',t:'打开图鉴',sub:'看看还差什么'}];
+        spec={blocks:[say1('八个都找到啦？那还剩最后一个：图鉴三页都点亮的猫，会长出翅膀。'),{k:'text',t:miss?miss+'。':'你差不多都齐了，再等一下下～'},{k:'choices',items}],tip:tipOf('concierge'),acts:BACK};
+        pick=()=>{A.dlg.close();A.ui.book&&A.ui.book('egg')}}}
     else{const e=L[eggI%L.length],I=E.info(e.key)||{},part=I.parts&&I.parts.find(p=>!p.got),tip=part?`${part.n}：${part.tip}`:I.tip,to=part?part.go:I.go,
         items=[...(to?[{id:'go',t:'带我去',sub:tip}]:[]),...(L.length>1?[{id:'next',t:'换一个'}]:[])];
       spec={blocks:[say1(eggI?'那说说这一个：':'彩蛋啊……店里藏着八个，我只知道一点点。这一个是这么说的：'),{k:'text',t:`「${I.riddle||e.hint}」`},{k:'text',t:'提示：'+(tip||'这个我也说不清，你自己琢磨琢磨～')},...(items.length?[{k:'choices',items}]:[])],tip:tipOf('concierge'),acts:BACK};

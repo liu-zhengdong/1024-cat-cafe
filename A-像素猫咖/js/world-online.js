@@ -6,6 +6,7 @@
    - 机器人补位：bots 减去在线真人数，最少留 12 只（多猫任务要帮手）。真人的名字全店唯一，机器人撞了名就自己改名。
    - 联机时（A.shared）巨树和小黑板跟着服务端的计数走；断线 10 秒后真人的猫离开，恢复各算各的。
    - 彩蛋：第一次找到一个，告诉服务端（全店的新闻里说一句"谁找到了一个彩蛋"，不说是哪个；图鉴里写每个有几只猫找到）；挂坠、项圈发光、水晶泡泡走标志位。
+     终极彩蛋（全成就）：全店在线的玩家正上方都出一张"全店广播"（A.ui.shout），写着是谁。断着线时找到的，连上以后补发（同一种消息服务端两秒只收一条，排着隔开发）。
      吧台的大鱼缸全店共用：放进去一条水晶鱼告诉服务端，缸里按全店一共放了几条画（A.crystal.shared）。
    WORLD_MODS 里放在最后：它包在别的模块的 A.pass / A.onEmote / A.onSay / A.onHang 外面。 */
 WORLD_MODS.push(A=>{
@@ -96,6 +97,7 @@ L.recv=m=>{switch(m.t){
 // 有猫第一次找到一个彩蛋：计数更新；新闻里只说找到了一个（猫猫星球说它坐着纸箱火箭飞上了天），人多的时候省掉一部分
 let eggNewsT=0;
 function egged(m){if(!has(EGGS,m.k))return;if(Number.isInteger(m.n)){A.eggs.counts=A.eggs.counts||{};A.eggs.counts[m.k]=m.n}if(m.id===L.myId)return;const c=L.cats.get(m.id),n=c?c.name:'一只猫';
+  if(EGGS[m.k].final){const s=`${n}集齐了全成就，长出了一对翅膀！`;news(s);A.ui.shout&&A.ui.shout(s);return}   // 全店广播：不省
   if(now()<eggNewsT&&m.k!=='planet')return;eggNewsT=now()+4;news(m.k==='planet'?`${n}坐着纸箱火箭飞上了天！`:`${n}找到了一个彩蛋`)}
 function tanked(m){if(!Number.isInteger(m.n)||!A.crystal)return;A.crystal.shared={n:m.n,gold:Math.min(m.n,m.gold|0)};if(m.id===L.myId)return;const c=L.cats.get(m.id);news(`${c?c.name:'一只猫'}把一条水晶鱼放进了吧台的大鱼缸`)}
 // 断线：真人的猫先停在原地，10 秒后离开；计数恢复各算各的
@@ -133,7 +135,8 @@ const emo0=A.onEmote;A.onEmote=(c,i)=>{emo0(c,i);if(c.me&&L.on)L.send({t:'emo',i
 const say0=A.onSay;A.onSay=(c,s)=>{if(say0)say0(c,s);if(c.me&&L.on){const i=PHRASES.indexOf(s);if(i>=0)L.send({t:'ph',i})}};
 A.onRub=(c,o)=>{if(c.me&&o.puppet&&L.on)L.send({t:'rub',to:o.rid})};
 const soc0=A.onSocial;A.onSocial=(c,o,k)=>{if(soc0)soc0(c,o,k);if(c.me&&o.puppet&&L.on&&has(KIND,k))L.send({t:'rub',to:o.rid,k})};
-A.onEggFound=k=>{if(L.on)L.send({t:'egg',k})};
+const eggQ=[];let eggT=0;A.onEggFound=k=>{if(!eggQ.includes(k))eggQ.push(k)};
+tick(dt=>{if((eggT-=dt)>0||!L.on||!eggQ.length)return;L.send({t:'egg',k:eggQ.shift()});eggT=2.2});
 A.onTank=gold=>{if(L.on)L.send({t:'tank',gold:gold?1:0,k:A.crystal?A.crystal.mine():1})};
 const hang0=A.onHang;A.onHang=(c,item)=>{if(hang0)hang0(c,item);if(c.me&&L.on){const y=item.y;L.send({t:'hang',kind:item.kind,ci:item.ci,...(y&&y.from?{from:y.from.rid}:{})})}};
 });
