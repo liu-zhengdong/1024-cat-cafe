@@ -49,11 +49,11 @@ const ui={prompt:s=>{const el=$('prompt'),on=!!s&&!dlg.open&&playing;if(s!==prom
   news:s=>{NEWS.push({s,t:performance.now()});if(NEWS.length>5)NEWS.shift();drawNews()},sfx,photo:showPhoto,
   dialog:s=>{dlg.render(s);$('prompt').style.display=s?'none':$('prompt').style.display;if(s){closeMenu();$('tip').style.display='none'}},
   // 彩蛋（world-eggs.js）：和新发现用同一个位置，样子不一样——金边、带一颗星（.egg）
-  // 终极彩蛋（final，world-wings.js）：写"终极彩蛋 · 全成就"，不写第几个；画面上方再出大字
+  // 终极彩蛋（final，world-wings.js）：写"终极彩蛋 · 全成就"，不写第几个；画面上方再出大字。只说得到了什么，戴上以后什么样让玩家自己看
   egg:e=>{const el=$('disc');discHold=false;el.classList.remove('fish');el.innerHTML=`<h5><canvas data-ic="star"></canvas>${e.final?'终极彩蛋':'彩蛋'} · ${esc(e.n)}${e.final?'':`<i>${e.count} / ${e.total}</i>`}</h5><p>${esc(e.what)}</p>`+
-    (e.charm?`<div class="fr">${BOOK.pix(charmCanvas(e.key),4,'c-'+e.key)}<span>得到了：<b>${esc(e.charm.n)}</b>${e.charm.worn?'，已经戴上了':'（图鉴里可以戴上）'}${e.glow?'；项圈从此一直发光':''}${e.final?'。戴着它：长出一对翅膀，走路改成贴地飞，全身一圈金色的光':''}</span></div>`:'');
+    (e.charm?`<div class="fr">${BOOK.pix(charmCanvas(e.key),4,'c-'+e.key)}<span>得到了：<b>${esc(e.charm.n)}</b>${e.charm.worn?'，已经戴上了':'（图鉴里可以戴上）'}${e.glow?'；项圈从此一直发光':''}</span></div>`:'');
     icons(el);el.classList.add('show','egg');el.classList.toggle('final',!!e.final);discT=e.final?11:e.charm?9:7;
-    if(e.final)title('终极彩蛋','全成就','图鉴三页都点亮了 · 金羽毛已经戴上',{delay:300,hold:5200,big:1})},
+    if(e.final)title('终极彩蛋','全成就','图鉴三页都点亮了',{delay:300,hold:5200,big:1})},
   // 全店广播（别人集齐了全成就，world-online.js）：和店里的公告排在同一个位置
   shout:s=>{cardQ.push({title:'全店广播',icon:'star',s,snd:'fanfare'})},
   fishCard:f=>{sfx('disc');const el=$('disc');discHold=false;el.classList.remove('egg','final');el.innerHTML=`<h5><canvas data-ic="fish"></canvas>鱼谱 · ${esc(f.n)}<i>${f.count} / ${f.total}</i></h5>`+

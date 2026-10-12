@@ -20,7 +20,7 @@ const EGGS={
   credits:{n:'片尾彩蛋',hint:'电影放完别急着走',tip:'去地下的小电影院，坐下看完一整部，字幕走完别起身',go:'cseat',what:'看完了整部《猫猫咖啡馆》：字幕后面，THE END 上溜进来一个红点，六只猫扑成一团；红点溜出银幕，被你的猫一爪拍掉，最后它们对你慢慢眨眼'},
   // 终极彩蛋：放在最后（联机里的挂坠编号跟着 CHARMS 的顺序，金羽毛是第 9 枚）
   ultimate:{n:'全成就',final:1,hint:'图鉴三页都点亮的猫，会长出点什么',tip:'店里的东西每样都玩一次，鱼谱十种都钓到，另外八个彩蛋都找到',
-    what:'店里的每样东西、鱼谱里的十种鱼、八个彩蛋，全都找到了：背上长出一对翅膀，从此贴着地面飞，全身一圈金色的光'}};
+    what:'店里的每样东西、鱼谱里的十种鱼、八个彩蛋，全都找到了'}};
 const EGG_REG=Object.keys(EGGS).filter(k=>!EGGS[k].final);   // 普通的八个（图鉴页签、前台猫、件数都只数它们）
 
 WORLD_MODS.push(A=>{
@@ -34,7 +34,7 @@ const E=A.eggs={counts:null,
     // 挂坠：手上没戴的就戴上；猫猫星球的水晶项链最难得、终极彩蛋的金羽毛，直接换上
     if(CHARMS[k]&&(!s.$wear||k==='planet'||e.final))s.$wear=k;A.guide.save();dress();
     sfx('egg');const ch=CHARMS[k];A.ui.egg&&A.ui.egg({key:k,n:e.n,what:e.what,count:E.count(),total:E.total,final:!!e.final,charm:ch?{key:k,n:ch.n,d:ch.d,worn:s.$wear===k}:null,glow:k==='planet'});
-    news(e.final?`${me.label||'你'}集齐了全成就，长出了一对翅膀`:`${me.label||'你'}找到了一个彩蛋：${e.n}`);A.emit&&A.emit('egg',k);if(A.onEggFound)A.onEggFound(k);return true},
+    news(e.final?`${me.label||'你'}集齐了全成就`:`${me.label||'你'}找到了一个彩蛋：${e.n}`);A.emit&&A.emit('egg',k);if(A.onEggFound)A.onEggFound(k);return true},
   step(k,i){const s=st(),o=s[k]=s[k]||{};o.steps=o.steps||[];if(!o.steps.includes(i)){o.steps.push(i);o.steps.sort((a,b)=>a-b);A.guide.save()}return o.steps.length},
   steps:k=>((st()[k]||{}).steps||[]).slice(),
   list:()=>EGG_REG.map(key=>{const e=EGGS[key],s=st()[key]||{};return{key,n:e.n,hint:e.hint,what:e.what,found:!!s.at,at:s.at||0,steps:e.steps||0,done:(s.steps||[]).length}}),

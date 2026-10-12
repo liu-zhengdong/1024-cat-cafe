@@ -98,9 +98,9 @@ function page(id){const q=A.Q&&A.Q.cur,ball=me.hold&&!me.hold.knit;let spec,pick
   // 店里有彩蛋吗：说一个你还没找到的（先说猫猫星球，说的是下一步），可以带你去、换一个（docs/店内设计.md 第四节"找得到"）
   else if(id==='eggs'){const E=A.eggs,L=E.list().filter(e=>!e.found);
     // 八个都找到了：说起终极彩蛋（图鉴三页都点亮），说还差什么，带你去看图鉴（world-wings.js）
-    if(!L.length){if(E.has('ultimate'))spec={blocks:[say1('翅膀都长出来了……你知道的比我还多。')],tip:tipOf('concierge'),acts:BACK};
+    if(!L.length){if(E.has('ultimate'))spec={blocks:[say1('连终极彩蛋都找到了……你知道的比我还多。')],tip:tipOf('concierge'),acts:BACK};
       else{const p=E.progress(),miss=[p.all[1]>p.all[0]?`店里还有 ${p.all[1]-p.all[0]} 样没玩过`:'',p.fish[1]>p.fish[0]?`鱼谱还差 ${p.fish[1]-p.fish[0]} 种`:''].filter(Boolean).join('，'),items=[{id:'book',t:'打开图鉴',sub:'看看还差什么'}];
-        spec={blocks:[say1('八个都找到啦？那还剩最后一个：图鉴三页都点亮的猫，会长出翅膀。'),{k:'text',t:miss?miss+'。':'你差不多都齐了，再等一下下～'},{k:'choices',items}],tip:tipOf('concierge'),acts:BACK};
+        spec={blocks:[say1('八个都找到啦？那还剩最后一个：图鉴三页都点亮的猫，会长出点什么。'),{k:'text',t:miss?miss+'。':'你差不多都齐了，再等一下下～'},{k:'choices',items}],tip:tipOf('concierge'),acts:BACK};
         pick=()=>{A.dlg.close();A.ui.book&&A.ui.book('egg')}}}
     else{const e=L[eggI%L.length],I=E.info(e.key)||{},part=I.parts&&I.parts.find(p=>!p.got),tip=part?`${part.n}：${part.tip}`:I.tip,to=part?part.go:I.go,
         items=[...(to?[{id:'go',t:'带我去',sub:tip}]:[]),...(L.length>1?[{id:'next',t:'换一个'}]:[])];

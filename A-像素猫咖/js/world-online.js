@@ -97,7 +97,7 @@ L.recv=m=>{switch(m.t){
 // 有猫第一次找到一个彩蛋：计数更新；新闻里只说找到了一个（猫猫星球说它坐着纸箱火箭飞上了天），人多的时候省掉一部分
 let eggNewsT=0;
 function egged(m){if(!has(EGGS,m.k))return;if(Number.isInteger(m.n)){A.eggs.counts=A.eggs.counts||{};A.eggs.counts[m.k]=m.n}if(m.id===L.myId)return;const c=L.cats.get(m.id),n=c?c.name:'一只猫';
-  if(EGGS[m.k].final){const s=`${n}集齐了全成就，长出了一对翅膀！`;news(s);A.ui.shout&&A.ui.shout(s);return}   // 全店广播：不省
+  if(EGGS[m.k].final){const s=`${n}集齐了全成就！`;news(s);A.ui.shout&&A.ui.shout(s);return}   // 全店广播：不省
   if(now()<eggNewsT&&m.k!=='planet')return;eggNewsT=now()+4;news(m.k==='planet'?`${n}坐着纸箱火箭飞上了天！`:`${n}找到了一个彩蛋`)}
 function tanked(m){if(!Number.isInteger(m.n)||!A.crystal)return;A.crystal.shared={n:m.n,gold:Math.min(m.n,m.gold|0)};if(m.id===L.myId)return;const c=L.cats.get(m.id);news(`${c?c.name:'一只猫'}把一条水晶鱼放进了吧台的大鱼缸`)}
 // 断线：真人的猫先停在原地，10 秒后离开；计数恢复各算各的

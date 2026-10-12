@@ -64,7 +64,7 @@ function pageEgg(A){const E=A.eggs,cnt=E.counts,worn=E.worn();
 function finalCard(A){const E=A.eggs,U=EGGS.ultimate,ch=CHARMS.ultimate,n=E.counts&&E.counts.ultimate,who=n?`<em class="who">已经有 ${n} 只猫集齐</em>`:'',at=(A.guide.eggs().ultimate||{}).at;
   if(E.has('ultimate')){const on=E.worn()==='ultimate';
     return `<div class="eg on final"><span class="st">★</span><div><b>${esc(U.n)}</b><small>终极彩蛋${at>1?' · '+day(at)+' 集齐':''}</small>${who}<p class="w">${esc(U.what)}</p>`+
-      `<div class="rw">${pix(charmCanvas('ultimate'),5,'c5-ultimate')}<span><b>${esc(ch.n)}</b>${esc(ch.d)}；戴着它长出一对翅膀，走路改成贴地飞，全身一圈金色的光</span><button class="lbtn sm${on?' on':''}" data-wear="${on?'':'ultimate'}">${on?'戴着':'戴上'}</button></div></div></div>`}
+      `<div class="rw">${pix(charmCanvas('ultimate'),5,'c5-ultimate')}<span><b>${esc(ch.n)}</b>${esc(ch.d)}</span><button class="lbtn sm${on?' on':''}" data-wear="${on?'':'ultimate'}">${on?'戴着':'戴上'}</button></div></div></div>`}
   const p=E.progress(),row=(tab,nm,[a,t])=>`<li class="${a>=t?'got':''}" data-tab="${tab}"><span>${nm}</span><i><b style="width:${Math.round(a/Math.max(1,t)*100)}%"></b></i>${a} / ${t}</li>`;
   return `<div class="eg off final"><span class="st">✦</span><div><b>？？？</b><small>终极彩蛋</small>${who}<p class="w">${esc(U.hint)}</p><ul class="prog">${row('all','店里',p.all)}${row('fish','鱼谱',p.fish)}${row('egg','彩蛋',p.egg)}</ul>`+
     `<p class="rwd">${pix(charmCanvas('ultimate'),4,'c-ultimate')}<span>找到了：一枚很特别的挂坠</span></p></div></div>`}
