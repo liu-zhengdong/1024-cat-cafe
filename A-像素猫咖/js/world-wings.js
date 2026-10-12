@@ -114,16 +114,19 @@ A.overs.push(vis=>{const t=now();for(const c of S.cats){if(c.gone||c.hidden||!c.
     star(Math.round(bx+4+u*(bw-8)),Math.round(by+4+v*(bh*.7)),ph/.4)}}});
 
 /* ---------- 全成就：图鉴三页都点亮 ---------- */
-// 每半秒看一次。刚一齐先等两三秒（最后那一样自己的那一条先出完），再等你回到店里
-let chk=0,readyAt=0,party=null;const plumes=[];
+// 每半秒看一次。刚一齐先等两三秒（最后那一样自己的那一条先出完），再等你回到店里；进店之前就集齐了的（终极彩蛋上线之前、断线时），等进店动画和"欢迎回来"的大字过去。
+// 页面上开着登记抽奖的表、图鉴这些，或者"你被抽中了"排着没弹（A.uiBusy，app.js 填），先等着。触发以后那几秒 A.celebrating()：页面先不弹登记表、中奖通知
+let chk=0,readyAt=0,calm=0,party=null;const plumes=[];
+A.on('guideLoad',()=>{readyAt=0;calm=now()+6.5});
+A.celebrating=()=>!!party;
 A.tickers.push(dt=>{if((chk+=dt)<.5)return;chk=0;if(!A.play||party||E.has('ultimate'))return;
   if(!E.full()){readyAt=0;return}if(!readyAt){readyAt=now()+2.5;return}
-  if(now()<readyAt||A.vista.on||A.dlg.open||(A.arriving&&A.arriving())||me.hidden||me.transit)return;celebrate()});
+  if(now()<readyAt||now()<calm||A.vista.on||A.dlg.open||(A.arriving&&A.arriving())||(A.uiBusy&&A.uiBusy())||me.hidden||me.transit)return;celebrate()});
 function celebrate(){const t=now();party={t0:t,x:Math.round(me.x),y:Math.round(me.y)};sfx('fanfare');
   for(let i=0;i<28;i++)plumes.push({x:me.x+rr(-34,34),y:me.y-rr(34,80),vx:rr(-5,5),vy:rr(10,20),t0:t+rr(0,1.4),life:rr(2.4,3.6),s:rr(0,6.3)});
   if(!me.place&&!me.hidden&&!A.busy())run(me,[{k:'happy',dur:1.8,ex:'happy'}]);
   S.cats.forEach(o=>{if(!o.me&&!o.hidden&&Math.hypot(o.x-me.x,o.y-me.y)<170)emote(o,'bang',1.2)});
-  after(.7,()=>{E.found('ultimate');after(2.4,()=>{party=null})})}
+  after(.7,()=>{E.found('ultimate');after(4.8,()=>{party=null})})}   // 大字、"彩蛋"那一条出得差不多了，才让页面弹别的
 // 脚下炸开的那圈金光（一秒）、往下飘的金羽毛
 A.tickers.push(dt=>{for(let i=plumes.length-1;i>=0;i--){const p=plumes[i],k=now()-p.t0;if(k<0)continue;if(k>p.life){plumes.splice(i,1);continue}p.y+=p.vy*dt;p.x+=(p.vx+Math.sin(now()*2.4+p.s)*10)*dt}
   if(party&&now()-party.t0<1.2)A.lights.push({x:party.x,y:party.y-12,r:30+Math.round((now()-party.t0)*40),col:'#ffd84a',a:Math.max(0,1-(now()-party.t0)/1.2)})});

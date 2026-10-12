@@ -207,7 +207,8 @@ function gone(why){playing=false;Net.stop();const T={ban:['这只猫暂时不能
 // 抽中了：前台猫来告诉你领奖码。进店动画、对话框、看风景的时候先等等
 // 同一轮只弹一次：进店时的账号快照、联机时推过来的、重连时补发的，可能是同一条
 const prizeQ=[],prizeNos=new Set(),queuePrize=p=>{if(!p||!Number.isInteger(p.no)||prizeNos.has(p.no))return;prizeNos.add(p.no);prizeQ.push(p)};
-function tryPrize(){if(!prizeQ.length||!playing||asleep||dlg.open||game.A.arriving()||game.A.vista.on)return;const p=prizeQ.shift();sfx('fanfare');
+// 终极彩蛋正在庆祝（game.A.celebrating）：等它过去再弹
+function tryPrize(){if(!prizeQ.length||!playing||asleep||dlg.open||game.A.arriving()||game.A.vista.on||game.A.celebrating&&game.A.celebrating())return;const p=prizeQ.shift();sfx('fanfare');
   game.A.dlg.show({id:'prize-'+p.no,kind:'info',head:{icon:'star',title:'你被抽中了'},blocks:[{k:'say',pal:DESK_PAL,name:'前台猫',t:`第 ${p.no} 轮抽奖，抽中了你！`},
     {k:'code',label:'领奖码',t:p.code},...(p.how?[{k:'text',t:'怎么领：'+p.how}]:[]),{k:'text',t:'这个码只有你看得到。把它发给组织者，就能领奖。'}],acts:[{id:'ok',t:'记下了',key:'E'}]},{close:()=>Account.prizeSeen(p.no)})}
 
@@ -234,7 +235,7 @@ async function sendLotto(){if($('lgo').disabled)return;const v={real:$('lreal').
   if(r.err==='bad'&&LF[r.field])return bad(r);
   if(r.err==='closed'){SHOP.entry=false;drawStamps();lottoDone(shutText());return}
   $('lerr').textContent=r.err==='stamps'?'三个章还没存到店里，过几秒再点一次':'店门口网不好，等一下再点一次'}
-function tryLotto(){if(lottoAsked||!cat||cat.entry||Account.mode!=='server'||shut()||!full()||!playing||asleep||dlg.open||prizeQ.length||lottoOpen()||game.A.arriving()||game.A.vista.on)return;lottoAsked=true;openLotto()}
+function tryLotto(){if(lottoAsked||!cat||cat.entry||Account.mode!=='server'||shut()||!full()||!playing||asleep||dlg.open||prizeQ.length||lottoOpen()||game.A.arriving()||game.A.vista.on||game.A.celebrating&&game.A.celebrating())return;lottoAsked=true;openLotto()}
 
 /* ---------- 店里的设置（组织者在后台改，docs/组织者后台.md"店里的设置"）：补位的猫、抽奖登记开关、店里的公告 ----------
    建店前、联机连上（welcome）、组织者改了（cfg）都走这里。公告比这个浏览器看过的新，就等进店动画、看风景、人类回信都过去，在正上方出一次。
@@ -305,6 +306,8 @@ async function boot(progress){const gameEl=$('game');pctx=$('pc').getContext('2d
   if(typeof PXT!=='undefined')await Promise.race([PXT.ready,new Promise(r=>setTimeout(r,3000))]);
   applyShop(await shop0);
   game=makeWorld($('pc'),{play:true,ui,hi:true});window.__game=game;game.A.shop=SHOP;game.S.tod=SHOP_TOD;game.S.weather=SHOP_WX;game.bots(botsNow(),true);
+  // 页面上开着的、排着要弹的（终极彩蛋等它们过去再触发，world-wings.js）
+  game.A.uiBusy=()=>lottoOpen()||BOOK.isOpen()||prizeQ.length>0||$('keyov').style.display==='flex'||$('photo').style.display==='flex';
   dlg=makeDialog($('dlg'),{pick:i=>{game.A.dlg.pick(i);sfx('page')},act:id=>game.A.dlg.act(id),link:k=>openLink(k),visited:k=>k==='inner'?game.S.stamps.inner:game.S.stamps.site});
   game.A.hudAvoid=()=>hudR;layout();addEventListener('resize',layout);bindInput();drawStamps();if(DEV)devBar();requestAnimationFrame(loop);
   progress('看看你是不是来过……');const resumed=await Account.resume();await progress(null);
