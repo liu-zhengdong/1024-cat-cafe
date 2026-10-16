@@ -15,15 +15,18 @@ const startOfDay=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
 const won=c=>(c.prizes||[]).map(p=>p.no);
 // 存档是玩家自己交上来的：数字字段一律压成有界的非负整数再给后台看
 const int=v=>{const n=Math.floor(Number(v));return Number.isFinite(n)&&n>0?Math.min(n,1e9):0};
-const cats=()=>Object.values(S.db.cats);
+// 并进了别的猫的不列、不算（docs/登录与进店.md"两只合成一只"）
+const cats=()=>Object.values(S.db.cats).filter(c=>!c.merged);
 // 每个工号登记在几只猫上（名册里标"同工号"用）
 const empCount=()=>{const m=new Map();for(const c of cats())if(c.entry)m.set(ek(c),(m.get(ek(c))||0)+1);return m};
 function row(c,ec=empCount()){const g=(c.state&&typeof c.state.g==='object'&&c.state.g)||{},s=stamps(c);
   return{id:c.id,name:c.name,look:c.look,created:c.created,last:c.last,visits:int(c.state&&c.state.visits),balls:int(g.balls),disc:g.disc&&typeof g.disc==='object'?Object.keys(g.disc).length:0,hangs:int(c.hangs),
-    stamps:s,entry:S.pubEntry(c),dup:c.entry?ec.get(ek(c))-1:0,eligible:eligible(c),online:live.isOnline(c.id),banned:!!c.banned,flag:s.ball&&!c.hangs?'noHang':null,won:won(c)}}
+    stamps:s,entry:S.pubEntry(c),dup:c.entry?ec.get(ek(c))-1:0,eligible:eligible(c),online:live.isOnline(c.id),banned:!!c.banned,flag:s.ball&&!c.hangs?'noHang':null,won:won(c),absorbed:c.absorbed||[]}}
 /* ---------- 能抽的人：集齐三个章、登记了、没被封禁的猫，按工号合成一个人；姓名以最早那次登记为准，手机号也是（那次没留的，用最早留了的那次） ---------- */
-function people(){const m=new Map();for(const c of cats()){if(!c.entry||!eligible(c))continue;const k=ek(c);let p=m.get(k);if(!p){p={k,first:c.entry,cats:[]};m.set(k,p)}p.cats.push(c);if(c.entry.t<p.first.t)p.first=c.entry}
-  return[...m.values()].map(p=>{const tel=p.cats.map(c=>c.entry).filter(e=>e.contact).sort((a,b)=>a.t-b.t)[0];
+// 并进了别的猫的（两只都登记过、工号又不一样时，它的登记还在它身上）：登记照算，中奖通知发给留下的那只
+function people(){const m=new Map();for(const c0 of Object.values(S.db.cats)){if(!c0.entry||!eligible(c0))continue;const c=S.alive(c0),k=ek(c0);if(!c)continue;let p=m.get(k);if(!p){p={k,first:c0.entry,cats:[],es:[]};m.set(k,p)}
+    if(!p.cats.includes(c))p.cats.push(c);p.es.push(c0.entry);if(c0.entry.t<p.first.t)p.first=c0.entry}
+  return[...m.values()].map(p=>{const tel=p.es.filter(e=>e.contact).sort((a,b)=>a.t-b.t)[0];
     return{cats:p.cats,real:p.first.real,emp:p.first.emp,contact:p.first.contact||(tel?tel.contact:''),t:p.first.t}})}
 const find=id=>typeof id==='string'&&S.byId(id);
 

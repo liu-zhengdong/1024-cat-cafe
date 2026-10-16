@@ -11,9 +11,11 @@
    Account.entryWhy(e)         → null | {field, why}     抽奖登记的格式（前后端同一份）
    Account.settings()          → {bots, entry, notice, noticeAt} | null   组织者在后台改的店里的设置（服务端模式才有；取不到是 null）
    网站从 http 换成 https 以后（docs/登录与进店.md）：index.html 开头把网址 # 后面带来的令牌、领回码先收进浏览器，进店前这几个再用掉
-   Account.claim()             → null | {cat} | {err}     组织者给的领回链接（#claim=…）：换一张令牌，这个浏览器从此记这只猫
-   Account.moving(cur)         → null | cat               搬家页从 http 那边带来的另一只猫（cur 是这个浏览器现在记着的；同一只、作废了的不算）
-   Account.keepMoved(yes)      yes：从此记 http 那边带来的那只；否则丢掉它
+   Account.claim()             → null | {ok} | {err}      组织者给的领回链接（#claim=…）：换一张令牌。这个浏览器还没有猫就直接记它，有就和下面一样等着合
+   Account.moving(cur)         → null | cat               搬家页、领回链接带来的另一只猫（cur 是这个浏览器现在记着的；同一只、作废了的不算）
+   Account.adoptMoved()        这个浏览器没有猫：从此记带来的那只
+   Account.mergeMoved(keepOld) → {cat} | {err:'net'|…}    两只合成一只（docs/登录与进店.md"两只合成一只"）：keepOld 留带来的那只的名字，否则留现在的
+   Account.save() 交不上、因为这只猫合并过而这张令牌是合之前打开的：返回 'stale'
    Account.token()             → 联机用的令牌（服务端模式才有）；Account.wsUrl() → 联机的地址
    cat = {id, name, look:{coat, collar, face}, created, last, state, prizes?, entry?} */
 const Account=(()=>{
@@ -85,12 +87,15 @@ const remote={
   async offer(n,skip){const j=await call('POST','/names/offer',{n,skip});return Array.isArray(j.names)?{names:j.names}:{err:'net'}},
   async create(o){const j=await call('POST','/cats',o);if(j.token){LS.set(TK,j.token);return{cat:j.cat}}return{err:j.err||'net'}},
   async resume(){if(!LS.get(TK,null))return null;const j=await call('GET','/me');if(j.cat)return j.cat;if(j.status===401)LS.del(TK);return null},
-  async save(state,keepalive){const j=await call('PUT','/me/state',{state},keepalive);return j.status===200},
+  async save(state,keepalive){const j=await call('PUT','/me/state',{state},keepalive);return j.status===200||(j.status===409&&j.err==='stale'?'stale':false)},
   async logout(){await call('POST','/logout').catch(()=>{});LS.del(TK)},
   async prizeSeen(no){await call('POST','/me/prize-seen',{no})},
   async entry(e){const j=await call('POST','/me/entry',e);if(j.entry)return{entry:j.entry};return{err:j.err||'net',field:j.field,why:j.why}},
-  async claim(){const code=LS.get(CL,null);if(!code)return null;LS.del(CL);const j=await call('POST','/claim',{code});
-    if(j.token){LS.set(TK,j.token);LS.del(MV);return{cat:j.cat}}return{err:j.err||'net'}},
+  async claim(){const code=LS.get(CL,null);if(!code)return null;LS.del(CL);const j=await call('POST','/claim',{code});if(!j.token)return{err:j.err||'net'};
+    const cur=LS.get(TK,null);if(cur&&cur!==j.token)LS.set(MV,j.token);else LS.set(TK,j.token);return{ok:true}},
+  async merge(keepOld){const t=LS.get(MV,null),cur=LS.get(TK,null);if(!t||!cur)return{err:'none'};const [keep,from]=keepOld?[t,cur]:[cur,t];
+    const j=await call('POST','/me/merge',{from},false,keep);if(j.cat){LS.set(TK,keep);LS.del(MV);return{cat:j.cat}}
+    if(j.status===404||j.status===401){LS.del(MV);return{err:'gone'}}return{err:'net'}},
   async moving(cur){const t=LS.get(MV,null);if(!t)return null;const j=await call('GET','/me',null,false,t);
     if(j.cat&&!(cur&&cur.id===j.cat.id))return j.cat;if(j.cat||j.status===401)LS.del(MV);return null},
   async settings(){const j=await call('GET','/settings');return j.status===200?{bots:j.bots,entry:j.entry,notice:j.notice,noticeAt:j.noticeAt}:null}};
@@ -103,7 +108,7 @@ return{NAMES,inPool,pick,key,okLook,entryWhy,entryClean,empKey,mode:API?'server'
   save:(s,k)=>B.save(s,k).catch(()=>false),logout:()=>B.logout().catch(()=>{}),prizeSeen:no=>API?remote.prizeSeen(no).catch(()=>{}):null,
   settings:()=>API?remote.settings().catch(()=>null):Promise.resolve(null),
   claim:()=>API?remote.claim().catch(()=>({err:'net'})):Promise.resolve(null),moving:cur=>API?remote.moving(cur).catch(()=>null):Promise.resolve(null),
-  keepMoved:yes=>{const t=LS.get(MV,null);LS.del(MV);if(yes&&t)LS.set(TK,t)},
+  adoptMoved:()=>{const t=LS.get(MV,null);LS.del(MV);if(t)LS.set(TK,t)},mergeMoved:k=>API?remote.merge(k).catch(()=>({err:'net'})):Promise.resolve({err:'local'}),
   token:()=>API?LS.get(TK,null):null,
   // 联机地址：和接口同一台服务器的 /ws（config.js 里也可以用 ws 另给）
   wsUrl:()=>{if(!API)return null;if(CFG.ws)return CFG.ws;const u=new URL(API,location.href);if(!/^https?:$/.test(u.protocol))return null;u.protocol=u.protocol==='https:'?'wss:':'ws:';u.pathname=u.pathname.replace(/\/api\/?$/,'')+'/ws';u.search='';return u.href}}})();

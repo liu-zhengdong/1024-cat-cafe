@@ -20,7 +20,8 @@ let SAVE={},saveT=0,dirty=false;
 window.CAT_SAVE={load:k=>SAVE[k],save:(k,v)=>{SAVE[k]=v;touch()}};
 function touch(){dirty=true}
 function snapshot(){const m=game.me;return{g:SAVE.g||{},stamps:{...game.S.stamps},pos:{x:Math.round(m.x),y:Math.round(m.y)},arrived:1,visits:SAVE.visits||1}}
-function flush(keep){if(!cat||asleep||!playing)return;dirty=false;Account.save(snapshot(),keep)}
+// 存档交不上、因为这只猫刚和另一只合成了一只（这个窗口是合之前打开的）：别再存，请人重新打开（docs/登录与进店.md"两只合成一只"）
+function flush(keep){if(!cat||asleep||!playing)return;dirty=false;Account.save(snapshot(),keep).then(r=>{if(r==='stale')gone('stale')})}
 
 /* ---------- 界面回调（和样页 v4 一样，去掉了说明页的部分） ---------- */
 const NEWS=[];
@@ -202,8 +203,8 @@ function startNet(){if(Account.mode!=='server')return;const L=game.A.live;L.send
   Net.start({onState:s=>L.state(s),onMsg:m=>{if(m.t==='bye'){if(m.why==='elsewhere')sleep(true);else gone(m.why);return}if(m.t==='prize'){queuePrize(m);return}
     if(m.t==='cfg'){applyShop(m.cfg);return}if(m.t==='welcome')applyShop(m.cfg);L.recv(m)}})}   // welcome 先换上设置：机器人按新的数补位
 // 被封禁、这个浏览器记着的猫店里不认了：请出店，点"好"回到进店第一步
-function gone(why){playing=false;Net.stop();const T={ban:['这只猫暂时不能进店','有疑问请找组织者。']}[why]||['找不到你的猫了','店里不认这个浏览器记着的猫了。点"好"，重新扭一只。'];
-  $('goneh').textContent=T[0];$('gonep').textContent=T[1];$('gone').style.display='flex';$('goneb').onclick=()=>Account.logout().then(()=>location.reload())}
+function gone(why){playing=false;Net.stop();const T={ban:['这只猫暂时不能进店','有疑问请找组织者。'],stale:['这只猫和另一只合成了一只','点"好"，重新打开就是合好的那只。']}[why]||['找不到你的猫了','店里不认这个浏览器记着的猫了。点"好"，重新扭一只。'];
+  $('goneh').textContent=T[0];$('gonep').textContent=T[1];$('gone').style.display='flex';$('goneb').onclick=()=>why==='stale'?location.reload():Account.logout().then(()=>location.reload())}
 // 抽中了：前台猫来告诉你领奖码。进店动画、对话框、看风景的时候先等等
 // 同一轮只弹一次：进店时的账号快照、联机时推过来的、重连时补发的，可能是同一条
 const prizeQ=[],prizeNos=new Set(),queuePrize=p=>{if(!p||!Number.isInteger(p.no)||prizeNos.has(p.no))return;prizeNos.add(p.no);prizeQ.push(p)};
@@ -311,12 +312,15 @@ async function boot(progress){const gameEl=$('game');pctx=$('pc').getContext('2d
   dlg=makeDialog($('dlg'),{pick:i=>{game.A.dlg.pick(i);sfx('page')},act:id=>game.A.dlg.act(id),link:k=>openLink(k),visited:k=>k==='inner'?game.S.stamps.inner:game.S.stamps.site});
   game.A.hudAvoid=()=>hudR;layout();addEventListener('resize',layout);bindInput();drawStamps();if(DEV)devBar();requestAnimationFrame(loop);
   progress('看看你是不是来过……');
-  // 网站从 http 换成 https 以后（docs/登录与进店.md）：组织者给的领回链接先换成令牌；搬家页从 http 那边带来的另一只猫，这个浏览器还没有猫就直接用它，有就问留哪只
+  // 网站从 http 换成 https 以后（docs/登录与进店.md）：组织者给的领回链接先换成令牌；搬家页、领回链接带来的另一只猫，这个浏览器还没有猫就直接用它，
+  // 有就两只合成一只，问用哪个名字。合不成（网不好）：这次先接着用现在这只，下次打开再问
   const cl=await Account.claim();let resumed=await Account.resume();const old=await Account.moving(resumed);
   if(cl&&cl.err){progress('这个领回链接用过了或者过期了，找组织者再要一个');await new Promise(r=>setTimeout(r,3000))}
   await progress(null);
-  if(old){const asked=!!resumed,keep=!asked||(await Entry.pickMoved(old,resumed,$('bootbox')))==='old';Account.keepMoved(keep);
-    if(keep){resumed=old;if(asked&&old.state&&old.state.arrived){hideBoot();return enter({cat:old,how:'wake'})}}}   // 刚在卡片上挑过：不再弹"欢迎回来"
+  if(old&&!resumed){Account.adoptMoved();resumed=old}
+  else if(old){const r=await Account.mergeMoved((await Entry.pickMoved(old,resumed,$('bootbox')))==='old');
+    if(r.cat){resumed=r.cat;if(r.cat.state&&r.cat.state.arrived){hideBoot();return enter({cat:r.cat,how:'wake'})}}   // 刚在卡片上挑过：不再弹"欢迎回来"
+    else if(r.err==='gone')resumed=await Account.resume()}
   let intro=true;
   if(resumed&&resumed.state&&resumed.state.arrived){const v=await Entry.welcome(resumed,$('bootbox'));hideBoot();if(v==='enter')return enter({cat:resumed,how:'wake'});await Account.logout();intro=false}
   hideBoot();const r=await Entry.start(resumed&&!(resumed.state&&resumed.state.arrived)?resumed:null,{intro});enter(r)}

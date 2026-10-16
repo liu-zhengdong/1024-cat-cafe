@@ -5,6 +5,8 @@
      猫身上的 eggs 是它找到过的彩蛋（{键:时间}，计数用，同一个只算一次），tank 是它往吧台大鱼缸里放过几条水晶鱼
      猫身上的 entry 是它的抽奖登记 {real 姓名, emp 工号, contact 联系方式, t 第一次登记, u 最近一次改}
      claims 是组织者发的领回链接 {码的散列:{id, exp}}（docs/组织者后台.md"名册"）
+     两只合成一只（docs/登录与进店.md"两只合成一只"）：并进别的猫的，猫身上记 merged {into 并进了谁, t}；留下的那只记 absorbed [并进来的名字]、rev（合过几次）；
+     令牌上记 rev（这张令牌打开时那只猫的 rev），比猫的小就不收它交的存档
    - admin.key：后台口令（第一次启动时生成；也可以用环境变量 ADMIN_KEY） */
 const fs=require('fs'),path=require('path'),crypto=require('crypto'),vm=require('vm');
 const ROOT=path.resolve(__dirname,'..'),DATA=process.env.DATA_DIR?path.resolve(process.env.DATA_DIR):path.join(__dirname,'data');
@@ -43,14 +45,38 @@ const offer=(n,skip)=>ACC.pick(n,x=>!!db.cats[key(x)],skip);
 
 /* ---------- 令牌 ---------- */
 function issue(c){const t=crypto.randomBytes(32).toString('base64url');db.tokens[sha(t)]={id:c.id,k:key(c.name),exp:Date.now()+TOKEN_DAYS*864e5};return t}
+// 并进了别的猫的，顺着找到留下的那只（最多跟五层）
+const alive=c=>{for(let i=0;c&&c.merged&&i<5;i++)c=byId(c.merged.into);return c&&!c.merged?c:null};
 function who(token){if(typeof token!=='string'||!token||token.length>200)return null;const h=sha(token),tk=db.tokens[h];if(!tk)return null;
-  if(tk.exp<Date.now()){delete db.tokens[h];save();return null}const c=db.cats[tk.k];if(!c||c.id!==tk.id||c.banned)return null;tk.exp=Date.now()+TOKEN_DAYS*864e5;return{c,h}}
+  if(tk.exp<Date.now()){delete db.tokens[h];save();return null}const c0=db.cats[tk.k];if(!c0||c0.id!==tk.id)return null;const c=alive(c0);if(!c||c.banned)return null;
+  tk.exp=Date.now()+TOKEN_DAYS*864e5;return{c,h,tk,stale:(tk.rev||0)<(c.rev||0)}}
 // 领回链接：一次性的码，48 小时有效，库里只存散列；同一只猫再发一个，前一个作废
 const CLAIM_MS=48*3600e3;
 function claimNew(c){const code=crypto.randomBytes(12).toString('base64url'),t=Date.now(),C=db.claims=db.claims||{};
   for(const [h,v] of Object.entries(C))if(v.id===c.id||v.exp<t)delete C[h];C[sha(code)]={id:c.id,exp:t+CLAIM_MS};save();return{code,exp:t+CLAIM_MS}}
 function claimUse(code){if(typeof code!=='string'||!code||code.length>64||!db.claims)return null;const h=sha(code),v=db.claims[h];if(!v)return null;
-  delete db.claims[h];save();if(v.exp<Date.now())return null;const c=byId(v.id);return c&&!c.banned?c:null}
+  delete db.claims[h];save();if(v.exp<Date.now())return null;const c=alive(byId(v.id));return c&&!c.banned?c:null}
+
+/* ---------- 两只合成一只：b 的进度并进 a，a 的名字、样子留着（docs/登录与进店.md"两只合成一只"） ----------
+   存档 g 里：数取大的，毛线球、挂进橱窗加起来，发现的时间（disc、at）取早的；对象两边的键都留；
+   数组：彩蛋的步数（steps）取并集，别的（大鱼缸放过的鱼）取长的；别的（字符串）留 a 的 */
+const SUM_G=new Set(['balls','hung']);
+function mergeG(a,b,k,at){if(a===undefined)return b;if(b===undefined||b===null)return a;
+  if(typeof a==='number'&&typeof b==='number')return at==='g'&&SUM_G.has(k)?a+b:at==='g.disc'||k==='at'?Math.min(a,b):Math.max(a,b);
+  if(typeof a==='boolean'||typeof b==='boolean')return a||b;
+  if(Array.isArray(a)&&Array.isArray(b))return k==='steps'?[...new Set([...a,...b])].sort((x,y)=>x-y):a.length>=b.length?a:b;
+  if(a&&b&&typeof a==='object'&&typeof b==='object'&&!Array.isArray(a)&&!Array.isArray(b)){const o={...a},p=at?at+'.'+k:k;for(const kk of Object.keys(b))o[kk]=mergeG(a[kk],b[kk],kk,p);return o}
+  return a}
+function merge(a,b){const sa=a.state||{},sb=b.state||{},W=db.world,t=Date.now(),st={};
+  for(const k of new Set([...Object.keys(sa.stamps||{}),...Object.keys(sb.stamps||{})]))st[k]=!!((sa.stamps||{})[k]||(sb.stamps||{})[k]);
+  a.state={...sb,...sa,g:mergeG(sa.g||{},sb.g||{},'g',''),stamps:st,visits:(+sa.visits||0)+(+sb.visits||0),arrived:sa.arrived||sb.arrived?1:0,pos:sa.arrived?sa.pos:sb.pos};
+  // 服务端记的彩蛋：b 有、a 没有的挪过来（店里的计数 b 已经算过一次）；两只都有的，店里"几只猫找到"减掉一只
+  const E=a.eggs=a.eggs||{};for(const [k,v] of Object.entries(b.eggs||{})){if(E[k]){E[k]=Math.min(E[k],v);if(W.eggs&&W.eggs[k]>0)W.eggs[k]--}else E[k]=v}
+  a.tank=Math.max(a.tank||0,b.tank||0);a.hangs=(a.hangs||0)+(b.hangs||0);a.created=Math.min(a.created||t,b.created||t);
+  if(!a.entry&&b.entry){a.entry=b.entry;delete b.entry}
+  const nos=new Set((a.prizes||[]).map(p=>p.no));for(const p of b.prizes||[])if(!nos.has(p.no))(a.prizes=a.prizes||[]).push(p);
+  a.absorbed=[...(a.absorbed||[]),b.name,...(b.absorbed||[])];a.rev=(a.rev||0)+1;a.last=t;b.merged={into:a.id,t};
+  syncEggs(a);save()}
 function revoke(id){for(const [h,t] of Object.entries(db.tokens))if(t.id===id)delete db.tokens[h];save()}
 // 改名：名册按名字键存，令牌里也记着名字键
 function rename(c,name){const k0=key(c.name),k1=key(name);delete db.cats[k0];c.name=clean(name);db.cats[k1]=c;for(const t of Object.values(db.tokens))if(t.id===c.id)t.k=k1;reindex();save()}
@@ -75,4 +101,4 @@ function setSettings(b){const g=db.settings,next={};
 function adminKey(){if(process.env.ADMIN_KEY)return process.env.ADMIN_KEY;try{const k=fs.readFileSync(KEY_FILE,'utf8').trim();if(k)return k}catch(e){}
   const k=crypto.randomBytes(12).toString('base64url');fs.mkdirSync(DATA,{recursive:true});fs.writeFileSync(KEY_FILE,k+'\n',{mode:0o600});return k}
 
-module.exports={ROOT,DATA,ACC,EGG_KEYS,eggOk,syncEggs,db,key,clean,okLook,sha,byId,reindex,save,flush,offer,issue,who,revoke,rename,claimNew,claimUse,pub,pubEntry,today,pubSettings,setSettings,adminKey};
+module.exports={ROOT,DATA,ACC,EGG_KEYS,eggOk,syncEggs,db,key,clean,okLook,sha,byId,reindex,save,flush,offer,issue,who,revoke,rename,claimNew,claimUse,merge,alive,pub,pubEntry,today,pubSettings,setSettings,adminKey};

@@ -41,12 +41,12 @@ setInterval(()=>{if(key&&!$('app').hidden)loadStats().catch(()=>{})},10000);
 async function loadCats(){const r=await api('GET','/cats');cats=r.cats||[];drawRows()}
 const canDraw=c=>c.eligible&&c.entry;
 function drawRows(){const q=$('q').value.trim().toLowerCase(),el=$('onlyElig').checked,on=$('onlyOn').checked;
-  const hit=c=>[c.name,c.entry&&c.entry.real,c.entry&&c.entry.emp].some(v=>v&&String(v).toLowerCase().includes(q));
+  const hit=c=>[c.name,c.entry&&c.entry.real,c.entry&&c.entry.emp,...(c.absorbed||[])].some(v=>v&&String(v).toLowerCase().includes(q));
   const L=cats.filter(c=>(!q||hit(c))&&(!el||canDraw(c))&&(!on||c.online));
   $('rcount').textContent=`${cats.length} 只${q||el||on?` · 符合的 ${L.length} 只`:''}`;
   const tb=$('rows');tb.innerHTML='';
   for(const c of L.slice(0,SHOW)){const tr=document.createElement('tr'),s=c.stamps||{};
-    tr.innerHTML=`<td><div class="who"><span class="pc"></span><div><b>${esc(c.name)}</b>${c.online?'<i class="dot" title="在线"></i>':''}${c.banned?'<span class="tag ban">封禁</span>':''}${c.flag?'<span class="tag flag" title="盖了解球章，服务端却没记到它挂过">待核</span>':''}${canDraw(c)?'<span class="tag">能抽</span>':c.eligible?'<span class="tag">集齐</span>':''}</div></div></td>
+    tr.innerHTML=`<td><div class="who"><span class="pc"></span><div><b>${esc(c.name)}</b>${c.online?'<i class="dot" title="在线"></i>':''}${c.banned?'<span class="tag ban">封禁</span>':''}${(c.absorbed||[]).length?`<span class="tag" title="并进来的：${esc(c.absorbed.join('、'))}">合并过</span>`:''}${c.flag?'<span class="tag flag" title="盖了解球章，服务端却没记到它挂过">待核</span>':''}${canDraw(c)?'<span class="tag">能抽</span>':c.eligible?'<span class="tag">集齐</span>':''}</div></div></td>
       <td>${esc(when(c.created))}</td><td>${esc(when(c.last))}</td><td class="n">${esc(c.visits||0)}</td><td class="n">${esc(c.balls||0)}</td><td class="n">${esc(c.hangs||0)}</td>
       <td><span class="st"><i class="${s.ball?'on':''}" title="解一颗球">球</i><i class="${s.inner?'on':''}" title="内源主页">源</i><i class="${s.site?'on':''}" title="官网 / GitHub">官</i></span></td>
       <td class="en">${c.entry?`${esc(c.entry.real)} · ${esc(c.entry.emp)}${c.dup?`<span class="tag flag" title="同一个工号还登记在 ${esc(c.dup)} 只别的猫上">同工号</span>`:''}<br>${c.entry.contact?`<small>${esc(c.entry.contact)}</small>`:'<small class="no">没留手机号</small>'}`:'—'}</td>

@@ -57,15 +57,16 @@ function welcome(cat,box){return new Promise(res=>{const d=EA.describe(cat.look)
   box.querySelector('.sw').onclick=()=>{stopped=true;bar.style.width='0';if(confirm(`换了以后，这个浏览器就不记得「${cat.name}」了，它也找不回来。\n还要换一只新猫吗？`))end('switch')};
   box.addEventListener('pointerdown',e=>{if(!e.target.closest('a,button')){stopped=true;bar.style.width='0'}},{once:true});setTimeout(()=>go.focus(),30)})}
 
-/* ---------- 加载页上的"找到了你原来的猫"：网站从 http 换成 https，搬家页带来了原来那只，这个浏览器在 https 上又已经有一只（docs/登录与进店.md） ---------- */
+/* ---------- 加载页上的"找到了你原来的猫"：网站从 http 换成 https，搬家页（或者领回链接）带来了原来那只，这个浏览器在 https 上又已经有一只。
+   两只合成一只，进度都留着，只问用哪个名字（样子跟着名字走）（docs/登录与进店.md"两只合成一只"） ---------- */
 function pickMoved(old,cur,box){return new Promise(res=>{const d=EA.describe(old.look),st=old.state||{};
-  box.innerHTML=`<div class="wb"><canvas width="30" height="26"></canvas><div><small>找到了你原来的猫</small><b>${esc(old.name)}</b><p>${d.coat} · ${d.collar}${old.prev?' · 上次来是 '+ago(old.prev):''}${st.g&&st.g.balls?' · 解开过 '+st.g.balls+' 颗毛线球':''}</p>
-    <div class="acts"><button class="go pbtn">领回它</button><a class="sw">留着现在的「${esc(cur.name)}」</a></div></div></div>`;
+  box.innerHTML=`<div class="wb"><canvas width="30" height="26"></canvas><div><small>找到了你原来的猫</small><b>${esc(old.name)}</b><p>${d.coat} · ${d.collar}${old.prev?' · 上次来是 '+ago(old.prev):''}${st.g&&st.g.balls?' · 解开过 '+st.g.balls+' 颗毛线球':''}<br>和现在的「${esc(cur.name)}」合成一只，两边的进度都留着。</p>
+    <div class="acts"><button class="go pbtn">就叫「${esc(old.name)}」</button><a class="sw">还叫「${esc(cur.name)}」</a></div></div></div>`;
   const x=box.querySelector('canvas').getContext('2d');let t0=performance.now(),raf=0;
   const draw=ms=>{const t=(ms-t0)/1000;x.clearRect(0,0,30,26);const o=C;use(x);EA.cat(t%6<2.9?'slowBlink':'sit',old.look,15,24,t%6<2.9?t%6:t);use(o);raf=requestAnimationFrame(draw)};raf=requestAnimationFrame(draw);
   const end=v=>{cancelAnimationFrame(raf);removeEventListener('keydown',kd);res(v)};
   const kd=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();end('old')}};addEventListener('keydown',kd);
   box.querySelector('.go').onclick=()=>end('old');
-  box.querySelector('.sw').onclick=()=>{if(confirm(`留着「${cur.name}」的话，这个浏览器就不记得「${old.name}」了。\n确定吗？`))end('cur')};
+  box.querySelector('.sw').onclick=()=>end('cur');
   setTimeout(()=>box.querySelector('.go').focus(),30)})}
 return{start,leave,welcome,pickMoved,ago}})();

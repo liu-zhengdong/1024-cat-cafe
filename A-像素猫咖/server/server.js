@@ -25,8 +25,9 @@ const API={
     const k=key(name);if(db.cats[k])return[409,{err:'taken'}];
     const now=Date.now(),c={id:'c'+crypto.randomBytes(8).toString('hex'),name:S.clean(name),look:{coat:look.coat,collar:look.collar,face:look.face},created:now,last:now,prev:0,state:{}};
     db.cats[k]=c;S.reindex();const token=S.issue(c);S.save();return[200,{cat:S.pub(c),token}]},
-  'GET /me':({me})=>{if(!me)return[401,{err:'auth'}];const c=me.c;c.prev=c.last;c.last=Date.now();S.save();return[200,{cat:S.pub(c)}]},
-  'PUT /me/state':({me,body})=>{if(!me)return[401,{err:'auth'}];const s=body.state;if(!s||typeof s!=='object'||JSON.stringify(s).length>STATE_MAX)return[400,{err:'bad'}];
+  // 打开时取一次：这张令牌从此能交存档（合并过的猫，合之前打开的令牌不收，见下面 /me/merge）
+  'GET /me':({me})=>{if(!me)return[401,{err:'auth'}];const c=me.c;c.prev=c.last;c.last=Date.now();me.tk.rev=c.rev||0;S.save();return[200,{cat:S.pub(c)}]},
+  'PUT /me/state':({me,body})=>{if(!me)return[401,{err:'auth'}];if(me.stale)return[409,{err:'stale'}];const s=body.state;if(!s||typeof s!=='object'||JSON.stringify(s).length>STATE_MAX)return[400,{err:'bad'}];
     me.c.state={...me.c.state,...s};me.c.last=Date.now();S.syncEggs(me.c);S.save();return[200,{ok:true}]},
   // 登记抽奖：三个章都盖了才收；组织者截止了登记，新登记和修改都不收；改的话第一次登记的时间不变（按工号去重时以最早那次为准）
   'POST /me/entry':({me,body})=>{if(!me)return[401,{err:'auth'}];if(db.settings.entry===false)return[403,{err:'closed'}];const st=(me.c.state&&me.c.state.stamps)||{};if(!(st.ball&&st.inner&&st.site))return[403,{err:'stamps'}];
@@ -37,6 +38,9 @@ const API={
   // 店里的设置（组织者在后台改）：补位的猫有多少只、抽奖登记开着没有、店里的公告。不用身份，网页建店之前取一次
   'GET /settings':()=>[200,S.pubSettings()],
   'POST /logout':({me})=>{if(me){delete db.tokens[me.h];live.dropToken(me.h);S.save()}return[200,{ok:true}]},
+  // 两只合成一只（docs/登录与进店.md"两只合成一只"）：from 那只的进度并进自己。正开着的两只都断开联机（和双开一样），合之前打开的窗口再存档会被拒
+  'POST /me/merge':({me,body})=>{if(!me)return[401,{err:'auth'}];const o=S.who(String(body.from||''));if(!o)return[404,{err:'from'}];
+    if(o.c.id!==me.c.id){S.merge(me.c,o.c);live.kick(o.c.id,'elsewhere');live.kick(me.c.id,'elsewhere')}me.tk.rev=me.c.rev||0;S.save();return[200,{cat:S.pub(me.c)}]},
   // 领回链接（组织者在后台发的，docs/登录与进店.md"网站从 http 换成 https 以后"）：一次性的码换一张新令牌
   'POST /claim':({body})=>{const c=S.claimUse(body.code);if(!c)return[404,{err:'claim'}];const token=S.issue(c);S.save();return[200,{cat:S.pub(c),token}]},
   // 健康检查（deploy.sh、监控用）：只给数，不给名字
@@ -56,11 +60,11 @@ function serveFile(req,res,p){if(p==='/')p='/index.html';let f;try{f=path.join(S
     res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache',...(html?{}:{'Last-Modified':lm}),'X-Content-Type-Options':'nosniff'});fs.createReadStream(f).pipe(res)})}
 
 /* ---------- 搬家页：网站从 http 换成 https 以后，把 http 那一侧记着的令牌带过来（docs/登录与进店.md"网站从 http 换成 https 以后"） ----------
-   nginx 单独转这一页，带上 X-Forwarded-Proto、X-Original-URI（deploy.sh 生成的那一段）。
+   nginx 单独转这一页，带上 X-Forwarded-Proto、X-Original-URI（deploy.sh 生成的那一段）。猫咖挂在根上、前面的代理不改路径的，只要 X-Forwarded-Proto。
    - https 上来的：302 回一模一样的 http 地址。Chrome 把 http 自动升级成 https 以后，又被送回同一个 http 地址，就退回 http 去开；地址多一个参数它就再升级一次。
    - 一分钟内第二次从 https 来：网站开了 HSTS（或者 http 那边没放行），浏览器去不了 http，再送就来回打转。不搬了，回店里，什么也不带。
    - http 上来的、不经过 nginx 的：发 move.html 本身。 */
-function move(req,res){const h=req.headers,uri=String(h['x-original-uri']||''),host=String(h.host||'');
+function move(req,res){const h=req.headers,uri=String(h['x-original-uri']||req.url),host=String(h.host||'');
   if(h['x-forwarded-proto']!=='https'||!/^\/[!-~]*$/.test(uri)||!/^[\w.:[\]-]+$/.test(host))return serveFile(req,res,'/move.html');
   const at=uri.split('?')[0],again=/(^|;\s*)cat1024_mv=1(;|$)/.test(h.cookie||'');
   res.writeHead(302,{'Cache-Control':'no-store',...(again?{Location:'./#move=','Set-Cookie':`cat1024_mv=; Max-Age=0; Path=${at}; Secure`}:
