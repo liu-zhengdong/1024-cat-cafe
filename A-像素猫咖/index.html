@@ -7,6 +7,20 @@
 <meta name="description" content="一个纯网页的像素 RPG：你扮演一只猫，在照着 Clowder AI 开的猫咖里解毛线球。">
 <link rel="preload" href="fonts/fusion-pixel-12.woff2" as="font" type="font/woff2" crossorigin>
 <script>
+/* 网站从 http 换成 https 以后（docs/登录与进店.md"网站从 http 换成 https 以后"）：令牌按网址存在浏览器里，https 这边读不到 http 那边的。
+   - #move=令牌：搬家页（move.html）从 http 那边带回来的。这个浏览器还没有猫就直接记下；已经有一只别的，先放在一边，进店前问留哪只（js/app.js）。
+   - #claim=码：组织者给的领回链接，进店前换成令牌（Account.claim）。
+   两样都马上从地址栏抹掉。CatMove.probe()：config.js 打开了 fromHttp、在 https 的默认端口上、这个浏览器还没搬过，就去搬家页绕一圈。只试一次：先记下"搬过了"再去，http 那边打不开也不会一直往那儿跳。 */
+window.CatMove=(()=>{const g=k=>{try{return localStorage.getItem(k)}catch(e){return null}},s=(k,v)=>{try{localStorage.setItem(k,v);return localStorage.getItem(k)===v}catch(e){return false}};
+  const F='cat1024.moved',m=/^#(move|claim)=([^&]*)$/.exec(location.hash);let v='';
+  if(m){history.replaceState(null,'',location.pathname+location.search);try{v=decodeURIComponent(m[2])}catch(e){}
+    if(m[1]==='claim'){if(/^[\w-]{8,64}$/.test(v))s('cat1024.claim',JSON.stringify(v))}
+    else{s(F,'1');if(/^[\w-]{20,200}$/.test(v)){let cur=null;try{cur=JSON.parse(g('cat1024.token'))}catch(e){}
+      if(!cur)s('cat1024.token',JSON.stringify(v));else if(cur!==v)s('cat1024.moving',JSON.stringify(v))}}}
+  return{moving:false,probe(){if(m||location.protocol!=='https:'||location.port||g(F)||!s(F,'1'))return false;this.moving=true;
+    location.replace('http://'+location.hostname+location.pathname.replace(/[^/]*$/,'')+'move.html');return true}}})();
+</script>
+<script>
 /* 像素字的字号（docs/店内设计.md 第十三节"字体和窗框"）：缝合像素字体只在 12 像素的整数倍上清楚，所以字号只有三档，
    每档都让"字号 × 屏幕像素密度"是 12 的整数倍（12 × k 个屏幕像素），每个点落在整的屏幕像素上。
    k 取离目标最近的（目标：小字 12、正文 18、大字 28 个 CSS 像素），一样近取小的（普通屏的一个 CSS 像素本来就比 Retina 的大）；正文不比小字小，大字一定比正文大。
@@ -425,9 +439,9 @@ requestAnimationFrame(draw);
 let n=0;const total=FILES.length;
 function load(src,cb,err){const s=document.createElement('script');s.src=src;s.async=false;s.onload=cb;s.onerror=err;document.body.appendChild(s)}
 // config.js 可以没有（公开仓库里只有 config.example.js）
-load('config.js',()=>{},()=>{});
+load('config.js',()=>{if((window.CAT1024_CONFIG||{}).fromHttp)CatMove.probe()},()=>{});
 FILES.forEach(([f,l])=>load('js/'+f,()=>{n++;real=n/total*.8;if(l)say(l);if(f==='quest-bank.js')tip();if(n===total)start()},()=>fail(f)));
-function start(){const snd=document.getElementById('esnd'),paint=()=>{snd.textContent='声音 '+(Sound.on?'开':'关');snd.classList.toggle('on',Sound.on)};paint();snd.onclick=()=>{Sound.set(!Sound.on);paint()};
+function start(){if(CatMove.moving)return;const snd=document.getElementById('esnd'),paint=()=>{snd.textContent='声音 '+(Sound.on?'开':'关');snd.classList.toggle('on',Sound.on)};paint();snd.onclick=()=>{Sound.set(!Sound.on);paint()};
   document.getElementById('wakeHere').onclick=()=>App.sleep(false);EK.mount();
   App.boot(s=>{if(s===null){real=1;ready=true;return new Promise(r=>doneCb=r)}real=Math.max(real,s==='点灯……'?.85:.93);say(s)}).catch(e=>{console.error(e);fail(e.message)})}
 })();

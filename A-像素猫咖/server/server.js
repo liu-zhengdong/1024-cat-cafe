@@ -37,6 +37,8 @@ const API={
   // 店里的设置（组织者在后台改）：补位的猫有多少只、抽奖登记开着没有、店里的公告。不用身份，网页建店之前取一次
   'GET /settings':()=>[200,S.pubSettings()],
   'POST /logout':({me})=>{if(me){delete db.tokens[me.h];live.dropToken(me.h);S.save()}return[200,{ok:true}]},
+  // 领回链接（组织者在后台发的，docs/登录与进店.md"网站从 http 换成 https 以后"）：一次性的码换一张新令牌
+  'POST /claim':({body})=>{const c=S.claimUse(body.code);if(!c)return[404,{err:'claim'}];const token=S.issue(c);S.save();return[200,{cat:S.pub(c),token}]},
   // 健康检查（deploy.sh、监控用）：只给数，不给名字
   'GET /health':()=>[200,{ok:true,cats:Object.keys(db.cats).length,online:live.stats().online,up:Math.round(process.uptime())}]};
 
@@ -53,10 +55,21 @@ function serveFile(req,res,p){if(p==='/')p='/index.html';let f;try{f=path.join(S
     if(!html&&ims&&Date.parse(ims)>=Math.floor(st.mtimeMs/1000)*1000){res.writeHead(304,{'Last-Modified':lm,'Cache-Control':'no-cache'});return res.end()}
     res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache',...(html?{}:{'Last-Modified':lm}),'X-Content-Type-Options':'nosniff'});fs.createReadStream(f).pipe(res)})}
 
+/* ---------- 搬家页：网站从 http 换成 https 以后，把 http 那一侧记着的令牌带过来（docs/登录与进店.md"网站从 http 换成 https 以后"） ----------
+   nginx 单独转这一页，带上 X-Forwarded-Proto、X-Original-URI（deploy.sh 生成的那一段）。
+   - https 上来的：302 回一模一样的 http 地址。Chrome 把 http 自动升级成 https 以后，又被送回同一个 http 地址，就退回 http 去开；地址多一个参数它就再升级一次。
+   - 一分钟内第二次从 https 来：网站开了 HSTS（或者 http 那边没放行），浏览器去不了 http，再送就来回打转。不搬了，回店里，什么也不带。
+   - http 上来的、不经过 nginx 的：发 move.html 本身。 */
+function move(req,res){const h=req.headers,uri=String(h['x-original-uri']||''),host=String(h.host||'');
+  if(h['x-forwarded-proto']!=='https'||!/^\/[!-~]*$/.test(uri)||!/^[\w.:[\]-]+$/.test(host))return serveFile(req,res,'/move.html');
+  const at=uri.split('?')[0],again=/(^|;\s*)cat1024_mv=1(;|$)/.test(h.cookie||'');
+  res.writeHead(302,{'Cache-Control':'no-store',...(again?{Location:'./#move=','Set-Cookie':`cat1024_mv=; Max-Age=0; Path=${at}; Secure`}:
+    {Location:'http://'+host+uri,'Set-Cookie':`cat1024_mv=1; Max-Age=60; Path=${at}; Secure; HttpOnly; SameSite=Lax`})});res.end()}
+
 function reply(res,out){if(out&&out.csv!=null){res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(out.name),'Cache-Control':'no-store'});return res.end(out.csv)}
   res.writeHead(out[0],{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(out[1]))}
 const server=http.createServer((req,res)=>{const u=new URL(req.url,'http://x'),ip=ipOf(req);
-  if(!u.pathname.startsWith('/api/'))return serveFile(req,res,u.pathname);
+  if(!u.pathname.startsWith('/api/'))return u.pathname==='/move.html'?move(req,res):serveFile(req,res,u.pathname);
   const sub=u.pathname.slice(4),isAdmin=sub.startsWith('/admin/'),h=isAdmin?null:API[req.method+' '+sub];
   if(!isAdmin&&!h){res.writeHead(404,{'Content-Type':'application/json'});return res.end('{"err":"none"}')}
   let raw='',big=false;req.on('data',d=>{raw+=d;if(raw.length>BODY_MAX){big=true;req.destroy()}});

@@ -4,6 +4,7 @@
      settings 是组织者在后台改的店里的设置（docs/组织者后台.md"店里的设置"）：{bots 补位的猫（null 按 config.js）, entry 抽奖登记开着没有, notice 店里的公告, noticeAt 公告发布的时间}
      猫身上的 eggs 是它找到过的彩蛋（{键:时间}，计数用，同一个只算一次），tank 是它往吧台大鱼缸里放过几条水晶鱼
      猫身上的 entry 是它的抽奖登记 {real 姓名, emp 工号, contact 联系方式, t 第一次登记, u 最近一次改}
+     claims 是组织者发的领回链接 {码的散列:{id, exp}}（docs/组织者后台.md"名册"）
    - admin.key：后台口令（第一次启动时生成；也可以用环境变量 ADMIN_KEY） */
 const fs=require('fs'),path=require('path'),crypto=require('crypto'),vm=require('vm');
 const ROOT=path.resolve(__dirname,'..'),DATA=process.env.DATA_DIR?path.resolve(process.env.DATA_DIR):path.join(__dirname,'data');
@@ -44,6 +45,12 @@ const offer=(n,skip)=>ACC.pick(n,x=>!!db.cats[key(x)],skip);
 function issue(c){const t=crypto.randomBytes(32).toString('base64url');db.tokens[sha(t)]={id:c.id,k:key(c.name),exp:Date.now()+TOKEN_DAYS*864e5};return t}
 function who(token){if(typeof token!=='string'||!token||token.length>200)return null;const h=sha(token),tk=db.tokens[h];if(!tk)return null;
   if(tk.exp<Date.now()){delete db.tokens[h];save();return null}const c=db.cats[tk.k];if(!c||c.id!==tk.id||c.banned)return null;tk.exp=Date.now()+TOKEN_DAYS*864e5;return{c,h}}
+// 领回链接：一次性的码，48 小时有效，库里只存散列；同一只猫再发一个，前一个作废
+const CLAIM_MS=48*3600e3;
+function claimNew(c){const code=crypto.randomBytes(12).toString('base64url'),t=Date.now(),C=db.claims=db.claims||{};
+  for(const [h,v] of Object.entries(C))if(v.id===c.id||v.exp<t)delete C[h];C[sha(code)]={id:c.id,exp:t+CLAIM_MS};save();return{code,exp:t+CLAIM_MS}}
+function claimUse(code){if(typeof code!=='string'||!code||code.length>64||!db.claims)return null;const h=sha(code),v=db.claims[h];if(!v)return null;
+  delete db.claims[h];save();if(v.exp<Date.now())return null;const c=byId(v.id);return c&&!c.banned?c:null}
 function revoke(id){for(const [h,t] of Object.entries(db.tokens))if(t.id===id)delete db.tokens[h];save()}
 // 改名：名册按名字键存，令牌里也记着名字键
 function rename(c,name){const k0=key(c.name),k1=key(name);delete db.cats[k0];c.name=clean(name);db.cats[k1]=c;for(const t of Object.values(db.tokens))if(t.id===c.id)t.k=k1;reindex();save()}
@@ -68,4 +75,4 @@ function setSettings(b){const g=db.settings,next={};
 function adminKey(){if(process.env.ADMIN_KEY)return process.env.ADMIN_KEY;try{const k=fs.readFileSync(KEY_FILE,'utf8').trim();if(k)return k}catch(e){}
   const k=crypto.randomBytes(12).toString('base64url');fs.mkdirSync(DATA,{recursive:true});fs.writeFileSync(KEY_FILE,k+'\n',{mode:0o600});return k}
 
-module.exports={ROOT,DATA,ACC,EGG_KEYS,eggOk,syncEggs,db,key,clean,okLook,sha,byId,reindex,save,flush,offer,issue,who,revoke,rename,pub,pubEntry,today,pubSettings,setSettings,adminKey};
+module.exports={ROOT,DATA,ACC,EGG_KEYS,eggOk,syncEggs,db,key,clean,okLook,sha,byId,reindex,save,flush,offer,issue,who,revoke,rename,claimNew,claimUse,pub,pubEntry,today,pubSettings,setSettings,adminKey};

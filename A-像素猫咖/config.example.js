@@ -10,5 +10,6 @@ window.CAT1024_CONFIG = {
     // site: 'https://…',
   },
   bots: 40,                // 补位的机器人：这个数减去在线的真人数（最少留 12 只）；组织者后台"店里的设置"里填过的，以后台为准
+  // fromHttp: true,      // 网站从 http 换成了 https：在 https 上第一次打开时，先去 http 那边把原来的猫领回来（docs/部署.md"网站从 http 换成 https 以后"；deploy.sh --from-http 写）
   // ws: 'wss://…/ws',     // 联机地址；不写就用页面所在路径下的 ws（https://网站/1024-cat-cafe/ → wss://网站/1024-cat-cafe/ws）
 };

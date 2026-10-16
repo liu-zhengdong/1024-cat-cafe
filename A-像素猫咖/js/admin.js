@@ -51,18 +51,25 @@ function drawRows(){const q=$('q').value.trim().toLowerCase(),el=$('onlyElig').c
       <td><span class="st"><i class="${s.ball?'on':''}" title="解一颗球">球</i><i class="${s.inner?'on':''}" title="内源主页">源</i><i class="${s.site?'on':''}" title="官网 / GitHub">官</i></span></td>
       <td class="en">${c.entry?`${esc(c.entry.real)} · ${esc(c.entry.emp)}${c.dup?`<span class="tag flag" title="同一个工号还登记在 ${esc(c.dup)} 只别的猫上">同工号</span>`:''}<br>${c.entry.contact?`<small>${esc(c.entry.contact)}</small>`:'<small class="no">没留手机号</small>'}`:'—'}</td>
       <td>${(c.won||[]).length?esc(c.won.map(n=>'第 '+n+' 轮').join('、')):'—'}</td>
-      <td><div class="acts"><button class="lbtn" data-a="rename">换个名字</button><button class="lbtn warn" data-a="ban">${c.banned?'解封':'封禁'}</button></div></td>`;
+      <td><div class="acts"><button class="lbtn" data-a="rename">换个名字</button>${c.banned?'':'<button class="lbtn" data-a="claim">领回链接</button>'}<button class="lbtn warn" data-a="ban">${c.banned?'解封':'封禁'}</button></div></td>`;
     tr.querySelector('.pc').replaceWith(portrait(c.look||{}));tr.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>act(b.dataset.a,c));tb.appendChild(tr)}
   $('more').textContent=L.length>SHOW?`只列出前 ${SHOW} 只（最近来过的在前），还有 ${L.length-SHOW} 只，按名字找。`:''}
 ['q','onlyElig','onlyOn'].forEach(id=>$(id).oninput=drawRows);$('reload').onclick=()=>{loadCats();loadStats();loadShop()};
 
-/* ---------- 每一行的两件事 ---------- */
+/* ---------- 每一行的三件事 ---------- */
 function modal(html,wire){$('mbox').innerHTML=html;$('modal').style.display='flex';wire&&wire($('mbox'))}
 const close=()=>{$('modal').style.display='none'};$('modal').onclick=e=>{if(e.target===$('modal'))close()};addEventListener('keydown',e=>{if(e.key==='Escape')close()});
 function act(a,c){
   if(a==='rename')return modal(`<h2>给「${esc(c.name)}」换个名字</h2><p>从还空着的名字里另发一个。它正在店里的话，自己和别人的画面上马上换成新名字。</p><p class="err"></p><div class="row"><button class="lbtn" data-x>算了</button><button class="pbtn" data-go>换</button></div>`,m=>{
     m.querySelector('[data-x]').onclick=close;m.querySelector('[data-go]').onclick=async()=>{const r=await api('POST','/rename',{id:c.id});
       if(!r.ok){m.querySelector('.err').textContent='没换成';return}modal(`<h2>换好了</h2><p>「${esc(c.name)}」现在叫「${esc(r.name)}」。</p><div class="row"><button class="pbtn" data-x>好</button></div>`,m2=>m2.querySelector('[data-x]').onclick=close);loadCats()}});
+  // 领回链接（docs/组织者后台.md"名册"）：认不出这只猫的浏览器凭它领回
+  if(a==='claim')return modal(`<h2>给「${esc(c.name)}」发领回链接</h2><p>它的主人换了电脑、清了浏览器，或者网站从 http 换成 https 以后搬家没搬过来，用这个链接领回。先确认是本人，再私下发过去。只能用一次，48 小时内有效；再发一个，前一个就作废。</p><p class="err"></p><div class="row"><button class="lbtn" data-x>算了</button><button class="pbtn" data-go>生成</button></div>`,m=>{
+    m.querySelector('[data-x]').onclick=close;m.querySelector('[data-go]').onclick=async()=>{const r=await api('POST','/claim',{id:c.id});
+      if(!r.code){m.querySelector('.err').textContent=r.err==='banned'?'封禁了的猫发不了':'没生成';return}const link=new URL('./#claim='+r.code,location.href).href;
+      modal(`<h2>「${esc(c.name)}」的领回链接</h2><p>私下发给本人，打开就领回这只猫。${(d=>(d.getMonth()+1)+' 月 '+d.getDate()+' 日 '+p2(d.getHours())+':'+p2(d.getMinutes()))(new Date(r.exp))} 以前有效，只能用一次。</p><input type="text" readonly style="width:100%;box-sizing:border-box" value="${esc(link)}"><p class="err"></p><div class="row"><button class="lbtn" data-cp>复制</button><button class="pbtn" data-x>好</button></div>`,m2=>{
+        const inp=m2.querySelector('input');inp.onfocus=()=>inp.select();m2.querySelector('[data-x]').onclick=close;
+        m2.querySelector('[data-cp]').onclick=async()=>{inp.select();let ok=false;try{await navigator.clipboard.writeText(link);ok=true}catch(e){try{ok=document.execCommand('copy')}catch(x){}}m2.querySelector('.err').textContent=ok?'复制好了':'没复制上，手动选中复制'}})}});
   if(a==='ban'){const on=!c.banned;return modal(`<h2>${on?'封禁':'解封'}「${esc(c.name)}」</h2><p>${on?'封禁以后进不了店，正在店里的会被请出去，也抽不到；名字仍然占着。':'解封以后，原来那个浏览器又能进店了。'}</p><div class="row"><button class="lbtn" data-x>算了</button><button class="pbtn" data-go>${on?'封禁':'解封'}</button></div>`,m=>{
     m.querySelector('[data-x]').onclick=close;m.querySelector('[data-go]').onclick=async()=>{await api('POST','/ban',{id:c.id,on});close();loadCats();loadStats()}})}}
 

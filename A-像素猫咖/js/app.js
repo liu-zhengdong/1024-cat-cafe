@@ -310,7 +310,13 @@ async function boot(progress){const gameEl=$('game');pctx=$('pc').getContext('2d
   game.A.uiBusy=()=>lottoOpen()||BOOK.isOpen()||prizeQ.length>0||$('keyov').style.display==='flex'||$('photo').style.display==='flex';
   dlg=makeDialog($('dlg'),{pick:i=>{game.A.dlg.pick(i);sfx('page')},act:id=>game.A.dlg.act(id),link:k=>openLink(k),visited:k=>k==='inner'?game.S.stamps.inner:game.S.stamps.site});
   game.A.hudAvoid=()=>hudR;layout();addEventListener('resize',layout);bindInput();drawStamps();if(DEV)devBar();requestAnimationFrame(loop);
-  progress('看看你是不是来过……');const resumed=await Account.resume();await progress(null);
+  progress('看看你是不是来过……');
+  // 网站从 http 换成 https 以后（docs/登录与进店.md）：组织者给的领回链接先换成令牌；搬家页从 http 那边带来的另一只猫，这个浏览器还没有猫就直接用它，有就问留哪只
+  const cl=await Account.claim();let resumed=await Account.resume();const old=await Account.moving(resumed);
+  if(cl&&cl.err){progress('这个领回链接用过了或者过期了，找组织者再要一个');await new Promise(r=>setTimeout(r,3000))}
+  await progress(null);
+  if(old){const asked=!!resumed,keep=!asked||(await Entry.pickMoved(old,resumed,$('bootbox')))==='old';Account.keepMoved(keep);
+    if(keep){resumed=old;if(asked&&old.state&&old.state.arrived){hideBoot();return enter({cat:old,how:'wake'})}}}   // 刚在卡片上挑过：不再弹"欢迎回来"
   let intro=true;
   if(resumed&&resumed.state&&resumed.state.arrived){const v=await Entry.welcome(resumed,$('bootbox'));hideBoot();if(v==='enter')return enter({cat:resumed,how:'wake'});await Account.logout();intro=false}
   hideBoot();const r=await Entry.start(resumed&&!(resumed.state&&resumed.state.arrived)?resumed:null,{intro});enter(r)}

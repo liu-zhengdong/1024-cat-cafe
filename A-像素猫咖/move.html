@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>1024 猫咖营业中</title>
+<style>html,body{margin:0;height:100%;background:#241a2e;color:#d8cce4;font:14px/1.6 system-ui,sans-serif}body{display:grid;place-items:center}</style>
+</head>
+<body>
+<p>正在把你的猫领过来……</p>
+<script>
+/* 搬家页（docs/登录与进店.md"网站从 http 换成 https 以后"）：网站换成 https 以前，猫的令牌记在浏览器 http 那一侧，https 那一侧读不到。
+   店里（https）第一次打开时绕到这里：在 http 上读出原来的令牌，带着它回店里（#move=令牌，# 后面的不发给服务器）。http 这边的令牌留着不删。
+   在 https 上被打开（nginx 还没装搬家页那一段）：什么也不带，回店里。 */
+(()=>{let t='';if(location.protocol==='http:')try{t=JSON.parse(localStorage.getItem('cat1024.token'))||''}catch(e){}
+  location.replace('https://'+location.hostname+location.pathname.replace(/[^/]*$/,'')+'#move='+encodeURIComponent(typeof t==='string'?t:''))})();
+</script>
+</body>
+</html>

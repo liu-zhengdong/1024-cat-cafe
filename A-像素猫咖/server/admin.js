@@ -1,4 +1,4 @@
-/* 1024 猫咖 · 组织者后台的接口：名册、换名字、封禁、抽奖登记按工号去重、抽奖（带领奖码）、导出 CSV、清空登记、店里的设置。设计见 docs/组织者后台.md。
+/* 1024 猫咖 · 组织者后台的接口：名册、换名字、封禁、领回链接、抽奖登记按工号去重、抽奖（带领奖码）、导出 CSV、清空登记、店里的设置。设计见 docs/组织者后台.md。
    全部要带请求头 X-Admin-Key；同一个地址 10 分钟内错 10 次，先歇一会儿。 */
 const crypto=require('crypto');
 module.exports=(S,live)=>{
@@ -62,6 +62,8 @@ const R={
   'POST /rename':({body})=>{const c=find(body.id);if(!c)return[404,{err:'none'}];const [name]=S.offer(1,[c.name]);if(!name)return[409,{err:'full'}];
     S.rename(c,name);live.rename(c.id,c.name);return[200,{ok:true,name:c.name}]},
   'POST /ban':({body})=>{const c=find(body.id);if(!c)return[404,{err:'none'}];c.banned=!!body.on;if(c.banned){S.revoke(c.id);live.kick(c.id,'ban')}S.save();return[200,{ok:true}]},
+  // 领回链接：认不出这只猫的浏览器（换了电脑、网站从 http 换成 https）凭它领回；组织者先确认是本人
+  'POST /claim':({body})=>{const c=find(body.id);if(!c)return[404,{err:'none'}];if(c.banned)return[409,{err:'banned'}];return[200,S.claimNew(c)]},
   'GET /draws':()=>[200,{draws:S.db.draws}],
   'POST /draw':({body})=>draw(body||{}),
   // 活动结束以后：删掉所有猫上的姓名、工号、联系方式，中奖记录里的也一起抹掉，只留猫的名字和领奖码

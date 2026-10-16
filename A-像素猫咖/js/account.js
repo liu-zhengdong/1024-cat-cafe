@@ -10,6 +10,10 @@
    Account.entry({real,emp,contact}) → {entry} | {err:'bad', field, why} | {err:'stamps'|'closed'|'local'|'net'}   登记抽奖（只有服务端模式能登记；contact 是手机号，可以空着）
    Account.entryWhy(e)         → null | {field, why}     抽奖登记的格式（前后端同一份）
    Account.settings()          → {bots, entry, notice, noticeAt} | null   组织者在后台改的店里的设置（服务端模式才有；取不到是 null）
+   网站从 http 换成 https 以后（docs/登录与进店.md）：index.html 开头把网址 # 后面带来的令牌、领回码先收进浏览器，进店前这几个再用掉
+   Account.claim()             → null | {cat} | {err}     组织者给的领回链接（#claim=…）：换一张令牌，这个浏览器从此记这只猫
+   Account.moving(cur)         → null | cat               搬家页从 http 那边带来的另一只猫（cur 是这个浏览器现在记着的；同一只、作废了的不算）
+   Account.keepMoved(yes)      yes：从此记 http 那边带来的那只；否则丢掉它
    Account.token()             → 联机用的令牌（服务端模式才有）；Account.wsUrl() → 联机的地址
    cat = {id, name, look:{coat, collar, face}, created, last, state, prizes?, entry?} */
 const Account=(()=>{
@@ -74,8 +78,8 @@ const local={
   async entry(){return{err:'local'}}};
 
 /* ---------- 服务端后端：接口见 docs/登录与进店.md，参考实现在 server/server.js ---------- */
-const TK='cat1024.token';
-async function call(method,path,body,keepalive){const t=LS.get(TK,null),h={'Content-Type':'application/json'};if(t)h.Authorization='Bearer '+t;
+const TK='cat1024.token',MV='cat1024.moving',CL='cat1024.claim';
+async function call(method,path,body,keepalive,tk){const t=tk||LS.get(TK,null),h={'Content-Type':'application/json'};if(t)h.Authorization='Bearer '+t;
   const r=await fetch(API+path,{method,headers:h,body:body?JSON.stringify(body):undefined,keepalive:!!keepalive,credentials:'same-origin'});let j={};try{j=await r.json()}catch(e){}return{status:r.status,...j}}
 const remote={
   async offer(n,skip){const j=await call('POST','/names/offer',{n,skip});return Array.isArray(j.names)?{names:j.names}:{err:'net'}},
@@ -85,6 +89,10 @@ const remote={
   async logout(){await call('POST','/logout').catch(()=>{});LS.del(TK)},
   async prizeSeen(no){await call('POST','/me/prize-seen',{no})},
   async entry(e){const j=await call('POST','/me/entry',e);if(j.entry)return{entry:j.entry};return{err:j.err||'net',field:j.field,why:j.why}},
+  async claim(){const code=LS.get(CL,null);if(!code)return null;LS.del(CL);const j=await call('POST','/claim',{code});
+    if(j.token){LS.set(TK,j.token);LS.del(MV);return{cat:j.cat}}return{err:j.err||'net'}},
+  async moving(cur){const t=LS.get(MV,null);if(!t)return null;const j=await call('GET','/me',null,false,t);
+    if(j.cat&&!(cur&&cur.id===j.cat.id))return j.cat;if(j.cat||j.status===401)LS.del(MV);return null},
   async settings(){const j=await call('GET','/settings');return j.status===200?{bots:j.bots,entry:j.entry,notice:j.notice,noticeAt:j.noticeAt}:null}};
 
 const B=API?remote:local;
@@ -94,6 +102,8 @@ return{NAMES,inPool,pick,key,okLook,entryWhy,entryClean,empKey,mode:API?'server'
   offer:safe(B.offer),create:safe(B.create),entry:safe(B.entry),resume:async()=>{try{return await B.resume()}catch(e){return null}},
   save:(s,k)=>B.save(s,k).catch(()=>false),logout:()=>B.logout().catch(()=>{}),prizeSeen:no=>API?remote.prizeSeen(no).catch(()=>{}):null,
   settings:()=>API?remote.settings().catch(()=>null):Promise.resolve(null),
+  claim:()=>API?remote.claim().catch(()=>({err:'net'})):Promise.resolve(null),moving:cur=>API?remote.moving(cur).catch(()=>null):Promise.resolve(null),
+  keepMoved:yes=>{const t=LS.get(MV,null);LS.del(MV);if(yes&&t)LS.set(TK,t)},
   token:()=>API?LS.get(TK,null):null,
   // 联机地址：和接口同一台服务器的 /ws（config.js 里也可以用 ws 另给）
   wsUrl:()=>{if(!API)return null;if(CFG.ws)return CFG.ws;const u=new URL(API,location.href);if(!/^https?:$/.test(u.protocol))return null;u.protocol=u.protocol==='https:'?'wss:':'ws:';u.pathname=u.pathname.replace(/\/api\/?$/,'')+'/ws';u.search='';return u.href}}})();

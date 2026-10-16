@@ -11,10 +11,13 @@
 #     --bots 40                      补位的机器人数（写进 config.js；后台"店里的设置"填过的以后台为准）
 #     --host 127.0.0.1               监听地址（默认只听本机，前面是网站的 nginx；写 0.0.0.0 或者内网 IP 就是不经过 nginx、
 #                                    同事直接打开 http://这台:端口，见 docs/部署.md 的"不经过 nginx，直接跑"）
+#     --from-http / --no-from-http   网站从 http 换成了 https：在 https 上第一次打开时先去 http 那边把原来的猫领回来（写进 config.js 的 fromHttp；
+#                                    见 docs/部署.md 的"网站从 http 换成 https 以后"）
 #   ./deploy.sh nginx                重新生成、打印 nginx 那一段和装的步骤；看网站的 nginx 用的是不是最新的
-#   ./deploy.sh verify https://网站的地址 [--via 127.0.0.1]
+#   ./deploy.sh verify https://网站的地址 [--via 127.0.0.1] [--from-http]
 #                                    经过网站把页面、脚本、接口、联机、后台都访问一遍，不对的给出该查什么；
 #                                    服务器上解析不了网站的域名就加 --via 127.0.0.1（直接连本机的 nginx）。网站的地址记下来，以后 status 也查
+#                                    --from-http：再查搬家页（https 上送回 http、http 上打得开）
 #   ./deploy.sh stop | restart | status | logs [-f]
 #   ./deploy.sh service              装成 systemd 服务：开机自启、挂了自动拉起（要 sudo，只在 Linux 上）
 #   ./deploy.sh uninstall            撤掉：停下，拆掉装过的 systemd 服务；代码和数据留着，删不删你定
@@ -43,10 +46,10 @@ die(){ printf '%s✗ %s%s\n' "${c_err}" "$*" "${c_0}" >&2; exit 1; }
 
 # ---------- 设置：deploy.env 里的、命令行给的 ----------
 # 挂的路径是固定的
-BASE=/1024-cat-cafe; NGINX_FILE="${APP_DIR}/nginx-1024-cat-cafe.conf"
+BASE=/1024-cat-cafe; NGINX_FILE="${APP_DIR}/nginx-1024-cat-cafe.conf"; NGINX_HTTP_FILE="${APP_DIR}/nginx-1024-cat-cafe-http.conf"
 PORT=1024; HOST=127.0.0.1; DATA_DIR="${APP_DIR}/server/data"; SITE=; VIA=
 [ -f "${ENV_FILE}" ] && . "${ENV_FILE}"
-INNER=; BOTS=; WITH_NODE=; WITH_CONFIG=0; FOLLOW=0
+INNER=; BOTS=; FROM_HTTP=; WITH_NODE=; WITH_CONFIG=0; FOLLOW=0
 # 第一个参数是命令；直接从选项开头（./deploy.sh --inner …）就是 start
 CMD=start; case "${1:-}" in -h|--help) CMD=help; shift;; ''|-*) ;; *) CMD="$1"; shift;; esac
 while [ $# -gt 0 ]; do
@@ -56,6 +59,8 @@ while [ $# -gt 0 ]; do
     --data) DATA_DIR="${2:?--data 后面要写目录}"; shift 2;;
     --inner) INNER="${2:?--inner 后面要写地址}"; shift 2;;
     --bots) BOTS="${2:?--bots 后面要写数字}"; shift 2;;
+    --from-http) FROM_HTTP=1; shift;;
+    --no-from-http) FROM_HTTP=0; shift;;
     --proxy) shift;;  # 以前的参数：现在按 --host 自己定（见下面 DIRECT）
     --with-node) WITH_NODE="${2:?--with-node 后面要写 Node 的二进制包}"; shift 2;;
     --with-config) WITH_CONFIG=1; shift;;
@@ -108,6 +113,18 @@ health(){ "${NODE}" -e "fetch('$(chk_url)/api/health').then(r=>r.ok?r.json():Pro
 NGINX_NEW=0
 write_nginx(){
   local up="${HOST}" tmp="${NGINX_FILE}.tmp"; if [ "${up}" = 0.0.0.0 ]; then up=127.0.0.1; fi
+  local moveloc
+  moveloc="$(cat <<EOF
+# 搬家页：网站从 http 换成 https 以后，把 http 那边记着的猫带过来（docs/部署.md"网站从 http 换成 https 以后"）
+location = ${BASE}/move.html {
+    proxy_pass http://${up}:${PORT}/move.html;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Forwarded-Proto \$scheme;    # 猫咖要知道这一下是从 http 还是 https 来的
+    proxy_set_header X-Original-URI \$request_uri;  # 从 https 送回 http 时，要回到一模一样的地址
+    add_header X-1024-Cat-Cafe 1;
+}
+EOF
+)"
   cat > "${tmp}" <<EOF
 # 1024 猫咖：挂在这个网站的 ${BASE}/ 下（deploy.sh 生成，猫咖的端口 ${PORT}）。
 # 整段放进网站对外的那个 server { } 里，和别的 location 并列。每一行为什么在：docs/部署.md
@@ -125,8 +142,15 @@ location ^~ ${BASE}/ {
     # 这一段有了自己的 add_header，就不继承网站在 server 一级加的头（里面要是有 Content-Security-Policy，猫咖会白屏）
     add_header X-1024-Cat-Cafe 1;
 }
+${moveloc}
 EOF
   if [ -f "${NGINX_FILE}" ] && cmp -s "${tmp}" "${NGINX_FILE}"; then rm -f "${tmp}"; else mv "${tmp}" "${NGINX_FILE}"; NGINX_NEW=1; fi
+  # 网站 http（80）那个 server { } 用的：只放行搬家页。只在网站从 http 换成 https、要搬猫的时候装
+  cat > "${NGINX_HTTP_FILE}" <<EOF
+# 1024 猫咖 · 给网站 http（80 端口）那个 server { } 用：只放行搬家页，别的路径照旧跳 https（deploy.sh 生成，猫咖的端口 ${PORT}）。
+# 只在网站从 http 换成 https、要把原来的猫搬过来时才装。为什么、怎么装：docs/部署.md"网站从 http 换成 https 以后"
+${moveloc}
+EOF
 }
 # 网站的 nginx 的配置目录，那一段装到它下面的 snippets/：先看 nginx -V 里的 conf-path（系统包装的 nginx 都写了），
 # 没写（自己编的、OpenResty……）就看 nginx -t 说的配置文件在哪（只读不改），再没有就按 /etc/nginx
@@ -181,26 +205,40 @@ const st=r=>r.err||r.st,end=()=>{console.log(bad?"有 "+bad+" 项不对":"全部
   if(!direct)say(r.h["content-encoding"]==="gzip","脚本压缩传（gzip）","没压缩：不影响用，只是第一次进店慢一点（那一段里的 gzip 两行）",true);
   r=await get(B+"/ws",{Connection:"Upgrade",Upgrade:"websocket","Sec-WebSocket-Version":"13","Sec-WebSocket-Key":crypto.randomBytes(16).toString("base64")});
   say(r.st===101,"联机 "+B+"/ws："+st(r),direct?"WebSocket 没接通：猫咖在不在跑；从这台服务器上通、同事那边不通的话，多半是公司的上网代理不放行（WebSocket 过代理要用 CONNECT，很多代理只放行 443）":"WebSocket 没接通：那一段里 Upgrade、Connection 两行；网站前面还有一层负载均衡或 WAF 不放行 WebSocket 的话，找管网络的人");
+  // 搬家页（--from-http）：https 上原样送回 http 的同一个地址；http 上发搬家页本身。见 docs/部署.md"网站从 http 换成 https 以后"
+  if(process.env.MOVE==="1"&&!direct){
+    if(u0.protocol!=="https:")say(false,"搬家页要经过 https 的地址查","./deploy.sh verify https://网站的地址 --from-http");
+    else{const want="http://"+u0.hostname+B+"/move.html";r=await get(B+"/move.html");
+      say(r.st===302&&r.h.location===want,"搬家页：https 上送回 "+want+(r.st===302&&r.h.location===want?"":"（"+st(r)+(r.h.location?" → "+r.h.location:"")+"）"),r.st===200?"https 那一段还是旧的：照 ./deploy.sh status 给的命令重新装上、reload":"");
+      const h=await new Promise(res=>{const q=require("http").request({host:via||hn,port:80,path:B+"/move.html",method:"GET",headers:{Host:u0.hostname}},
+          s=>{const b=[];s.on("data",d=>b.push(d));s.on("end",()=>res({st:s.statusCode,h:s.headers,body:Buffer.concat(b)}))});
+        q.setTimeout(8000,()=>q.destroy(new Error("8 秒没应答")));q.on("error",e=>res({err:e.message,h:{},body:Buffer.alloc(0)}));q.end()});
+      say(h.st===200&&h.h["x-1024-cat-cafe"]==="1"&&h.body.includes("move="),"搬家页：http 上打得开"+(h.st===200?"":"（"+st(h)+(h.h.location?" → "+h.h.location:"")+"）"),
+        h.st===301||h.st===302||h.st===307||h.st===308?"网站 http 那个 server { } 还在跳 https：include 那一行加了吗？跳转是不是写在 server 一级（要挪进 location / { }）？见 docs/部署.md“网站从 http 换成 https 以后”第 3 步":
+        h.err?"连不上 80 端口：网站的 http 那边没开，或者防火墙没放行":"")}}
   let k="";try{k=fs.readFileSync(process.env.KEYF,"utf8").trim()}catch(e){}
   if(k){r=await get(B+"/api/admin/stats",{"X-Admin-Key":k});say(r.st===200,"组织者后台的接口："+st(r),r.st===429?"口令输错太多次，10 分钟后再试":"")}
   end()})();'
-verify_run(){ SITE="${SITE}" BASE="${BASE}" PORT="${PORT}" CHK="$(chk_host)" VIA="${VIA}" KEYF="${DATA_DIR}/admin.key" ONLY="${1:-}" "${NODE}" -e "${VERIFY_JS}"; }
+verify_run(){ SITE="${SITE}" BASE="${BASE}" PORT="${PORT}" CHK="$(chk_host)" VIA="${VIA}" KEYF="${DATA_DIR}/admin.key" ONLY="${1:-}" MOVE="${FROM_HTTP}" "${NODE}" -e "${VERIFY_JS}"; }
 
-# ---------- config.js：给了 --inner / --bots，或者还没有这个文件，就写一份 ----------
-# 只改这两样，文件里别的设置（ws、改过的链接……）原样留着；内源主页里有引号、反斜杠也不会写坏（按 JSON 写）
+# ---------- config.js：给了 --inner / --bots / --from-http，或者还没有这个文件，就写一份 ----------
+# 只改这几样，文件里别的设置（ws、改过的链接……）原样留着；内源主页里有引号、反斜杠也不会写坏（按 JSON 写）
 write_config(){
   local f="${APP_DIR}/config.js"
-  if [ -f "${f}" ] && [ -z "${INNER}" ] && [ -z "${BOTS}" ]; then ok "config.js 已经有了，不动它"; return; fi
+  if [ -f "${f}" ] && [ -z "${INNER}" ] && [ -z "${BOTS}" ] && [ -z "${FROM_HTTP}" ]; then ok "config.js 已经有了，不动它"; return; fi
   local out
-  out="$(CFG_FILE="${f}" CFG_INNER="${INNER}" CFG_BOTS="${BOTS}" "${NODE}" -e '
+  out="$(CFG_FILE="${f}" CFG_INNER="${INNER}" CFG_BOTS="${BOTS}" CFG_FROM="${FROM_HTTP}" "${NODE}" -e '
     const fs=require("fs"),f=process.env.CFG_FILE;global.window={};let c={api:"api",links:{inner:""},bots:40};
     if(fs.existsSync(f)){try{require(f);c=Object.assign({},window.CAT1024_CONFIG||{})}catch(e){process.stderr.write("config.js 读不出来："+e.message+"\n");process.exit(2)}}
     c.links=Object.assign({},c.links||{});if(process.env.CFG_INNER)c.links.inner=process.env.CFG_INNER;if(!("inner" in c.links))c.links.inner="";
     if(process.env.CFG_BOTS)c.bots=+process.env.CFG_BOTS;if(c.bots==null)c.bots=40;if(c.api==null)c.api="api";
+    if(process.env.CFG_FROM==="1")c.fromHttp=true;else if(process.env.CFG_FROM==="0")delete c.fromHttp;
     fs.writeFileSync(f,"/* 1024 猫咖 · 部署配置（deploy.sh 写的；不进仓库）。字段见 config.example.js 和 docs/部署.md 的\"配置项一览\"。 */\nwindow.CAT1024_CONFIG = "+JSON.stringify(c,null,2)+";\n");
     process.stdout.write((c.links.inner||"")+"\t"+c.bots)')" || die "config.js 写不了（先看看它是不是改坏了：node -e \"global.window={};require('./config.js')\"）"
   ok "写好了 config.js（内源主页：${out%%$'\t'*}，机器人：${out##*$'\t'}）"
   [ -z "${out%%$'\t'*}" ] && ok "（内源主页还没配：${c_dim}./deploy.sh restart --inner 'https://…'${c_0}）"
+  [ "${FROM_HTTP}" = 1 ] && ok "打开了搬家：同事在 https 上第一次打开时，先去 http 那边把原来的猫领回来"
+  [ "${FROM_HTTP}" = 0 ] && ok "关掉了搬家"
   return 0
 }
 
@@ -276,7 +314,7 @@ do_start(){
   check_node
   [ -f "${APP_DIR}/server/server.js" ] && [ -f "${APP_DIR}/index.html" ] || die "这里不是 1024 猫咖的目录（找不到 server/server.js、index.html）"
   # 已经在跑：给了 --inner / --bots 也照样写进 config.js（页面不缓存，大家刷新就生效，不用重启）
-  if running; then [ -n "${INNER}${BOTS}" ] && { find_node; write_config; say "${c_dim}config.js 改了：刷新页面就生效${c_0}"; bots_note; }; ok "已经在跑了"; health >/dev/null && ok "接口正常" || warn "进程在，但接口没应答，看看日志：./deploy.sh logs"; show_urls; return; fi
+  if running; then [ -n "${INNER}${BOTS}${FROM_HTTP}" ] && { find_node; write_config; say "${c_dim}config.js 改了：刷新页面就生效${c_0}"; bots_note; }; ok "已经在跑了"; health >/dev/null && ok "接口正常" || warn "进程在，但接口没应答，看看日志：./deploy.sh logs"; show_urls; return; fi
   check_data; warn_direct
   mkdir -p "${DATA_DIR}" "${RUN_DIR}"; chmod 700 "${DATA_DIR}" 2>/dev/null || true
   write_config
@@ -362,7 +400,8 @@ EOF
 
 do_nginx(){ write_nginx
   if [ "${NGINX_NEW}" = 1 ]; then ok "生成了 ${NGINX_FILE}（端口 ${PORT}）"; else ok "${NGINX_FILE} 没变（端口 ${PORT}）"; fi
-  say ""; cat "${NGINX_FILE}"; say ""; nginx_steps; nginx_state; }
+  say ""; cat "${NGINX_FILE}"; say ""; nginx_steps; nginx_state
+  say "${c_dim}网站从 http 换成了 https、要把原来的猫搬过来：http 那个 server { } 还要装 ${NGINX_HTTP_FILE}，见 docs/部署.md 的\"网站从 http 换成 https 以后\"${c_0}"; }
 
 do_verify(){
   [ -n "${SITE}" ] || die "用法：./deploy.sh verify https://网站的地址 [--via 127.0.0.1]"
