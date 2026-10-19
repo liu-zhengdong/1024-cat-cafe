@@ -51,7 +51,7 @@ function edit(p){K().modal(`<h2>改「${esc(p.name)}」</h2><p>名称 <input typ
 
 /* ---------- 加次数、查一个工号 ---------- */
 function drawEmp(r){const SRC={manual:'管理员',codehub:'codehub star',jiaxian:'稼先关注',github:'github star'};
-  $('lemp').innerHTML=`<b class="big">${esc(r.emp)} 还有 ${esc(r.left)} 次</b><ul>${r.grants.map(g=>`<li>${esc(new Date(g.t).toLocaleTimeString())} ${g.n>0?'+':''}${esc(g.n)} · ${esc(SRC[g.src]||g.src)}${g.why?' · '+esc(g.why):''}</li>`).join('')}
+  $('lemp').innerHTML=`<b class="big">${esc(r.emp)} 还有 ${esc(r.left)} 次</b>${r.gh?`<span class="hint">GitHub 绑的是 @${esc(r.gh)}</span>`:''}<ul>${r.grants.map(g=>`<li>${esc(new Date(g.t).toLocaleTimeString())} ${g.n>0?'+':''}${esc(g.n)} · ${esc(SRC[g.src]||g.src)}${g.why?' · '+esc(g.why):''}</li>`).join('')}
     ${r.draws.map(d=>`<li>${esc(new Date(d.t).toLocaleTimeString())} 抽到 ${esc(TIER(d.tier))} · ${esc(d.name)}</li>`).join('')}</ul>`}
 async function query(){const emp=$('lemp-in').value.trim();if(!emp)return;const r=await api('GET',`emp?act=${encodeURIComponent(cur||'')}&emp=${encodeURIComponent(emp)}`);
   if(r.err)return K().say($('lgmsg'),ERR[r.err]||'没查到',1);drawEmp(r)}

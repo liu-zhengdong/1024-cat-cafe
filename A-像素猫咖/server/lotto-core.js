@@ -10,10 +10,11 @@ const empOk=k=>/^[A-Z0-9_-]{2,32}$/.test(k);
 const int=v=>Number.isInteger(v);
 const str=(v,max)=>typeof v==='string'&&v.trim().length>=1&&v.trim().length<=max;
 
-const fresh=()=>({acts:[],grants:[],draws:[]});
+const fresh=()=>({acts:[],grants:[],draws:[],gh:{}});
 // 读库：缺的补上；认不出的状态当 paused（不让抽，后台看得见、能改）
 function load(j){const s={...fresh(),...(j&&typeof j==='object'?j:{})};for(const k of ['acts','grants','draws'])if(!Array.isArray(s[k]))s[k]=[];
-  for(const a of s.acts){if(!STATUS.includes(a.status))a.status='paused';if(!Array.isArray(a.prizes))a.prizes=[]}return s}
+  for(const a of s.acts){if(!STATUS.includes(a.status))a.status='paused';if(!Array.isArray(a.prizes))a.prizes=[]}
+  if(!s.gh||typeof s.gh!=='object'||Array.isArray(s.gh))s.gh={};return s}
 
 const findAct=(s,id)=>s.acts.find(a=>a.id===id)||null;
 // 此刻的状态：进行中、暂停的，过了结束时间就当作结束
@@ -54,6 +55,18 @@ function grant(s,{act,emp,src,n,by='',why=''},now){const a=findAct(s,act);if(!a|
   else{if(s.grants.some(g=>g.act===act&&g.emp===k&&g.src===src))return{dup:true,left:left(s,act,k)};n=1}
   const g={act,emp:k,src,n,by:String(by),why:String(why).trim().slice(0,60),t:now};s.grants.push(g);return{grant:g,left:left(s,act,k)}}
 
+/* ---------- GitHub 用户名：员工自己填，查这个账号 star 了没有（docs/抽奖系统.md"GitHub star"） ----------
+   证明不了账号是本人的，所以绑死：一个 GitHub 用户名只能给一个工号用，一个工号也只认一个用户名；查到 star 了才绑。
+   s.gh = {用户名（小写）: 工号}，不分活动：下一个活动再查还是这一对。 */
+const ghKey=u=>String(u==null?'':u).trim().replace(/^@/,'').toLowerCase();
+const ghOk=k=>/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/.test(k);
+const ghOf=(s,emp)=>{const e=empKey(emp);return Object.keys(s.gh||{}).find(k=>s.gh[k]===e)||null};
+// 查之前先问能不能用：给回 {user}；被别的工号用了回 taken；这个工号已经绑了别的用户名回 {err:'bound', user}
+function ghCan(s,emp,user){const k=ghKey(user),e=empKey(emp);if(!ghOk(k)||!empOk(e))return{err:'bad'};
+  const who=(s.gh||{})[k];if(who&&who!==e)return{err:'taken'};const mine=ghOf(s,e);if(mine&&mine!==k)return{err:'bound',user:mine};return{user:k}}
+// 查到 star 了：绑上（已经绑着就不动）
+function ghBind(s,emp,user){const r=ghCan(s,emp,user);if(r.err)return r;s.gh=s.gh||{};s.gh[r.user]=empKey(emp);return r}
+
 /* ---------- 抽 ---------- */
 // 从有权重、还有库存的奖品里按权重抽；库存 0 的退出，剩下的权重自然归一
 function pick(prizes,rnd){const pool=prizes.filter(p=>p.weight>0&&(p.stock===null||p.given<p.stock));if(!pool.length)return null;
@@ -65,4 +78,4 @@ function draw(s,{act,emp,via,by=''},now,rnd){const a=findAct(s,act);if(!a)return
   const p=pick(a.prizes,rnd);if(!p)return{err:'empty'};
   p.given++;const d={act,emp:k,prize:p.id,tier:p.tier,name:p.name,via,by:String(by),t:now};s.draws.push(d);return{draw:d,left:left(s,act,k)}}
 
-module.exports={SRC,STATUS,WHY,empKey,empOk,fresh,load,findAct,statusOf,left,addAct,setStatus,addPrize,editPrize,restock,grant,pick,draw};
+module.exports={SRC,STATUS,WHY,empKey,empOk,ghKey,ghOk,ghOf,ghCan,ghBind,fresh,load,findAct,statusOf,left,addAct,setStatus,addPrize,editPrize,restock,grant,pick,draw};

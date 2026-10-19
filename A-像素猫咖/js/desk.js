@@ -9,9 +9,9 @@ const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c
 const BASE=((window.CAT1024_CONFIG||{}).api||'api').replace(/\/$/,''),KK='cat1024.desk',API=BASE+'/admin/lotto',IDLE_MS=30000;
 const ERR={none:'次数用完了',empty:'奖池空了，请工作人员补货',act:'现在没有进行中的抽奖，请找工作人员',time:'不在抽奖时间里',bad:'工号不对：字母、数字、- 和 _，2～32 位',disk:'没存上，请找工作人员',net:'连不上服务器，请找工作人员'};
 const LOGIN_ERR={state:'登录过期了，再点一次',w3:'w3 登录没成，再试一次；一直不行就用后台口令',emp:'w3 给的工号认不出，用后台口令登录',disk:'服务器存不下，请找部署的同事'};
-const TIER=LottoScene.TIER;
+const TIER=LottoScene.TIER,sfx=k=>{try{Sound.sfx(k)}catch(e){}};
 // 工作人员怎么登录的：key 后台口令；w3 白名单（cookie，请求里不用带什么）
-let key='',w3=null,w3on=false;try{key=sessionStorage.getItem(KK)||''}catch(e){}
+let key='',w3=null,w3on=false,ghOn=false,gh=null;try{key=sessionStorage.getItem(KK)||''}catch(e){}
 
 /* ---------- 接口 ---------- */
 async function api(m,p,b){let r;try{r=await fetch(API+p,{method:m,headers:{'Content-Type':'application/json',...(key?{'X-Admin-Key':key}:{})},body:b?JSON.stringify(b):undefined})}catch(e){return{err:'net'}}
@@ -26,18 +26,28 @@ function logout(msg){key='';w3=null;try{sessionStorage.removeItem(KK)}catch(e){}
     <form id="lf"><input type="password" id="lk" placeholder="后台口令" autocomplete="current-password"><button class="${w3on?'lbtn':'pbtn'}">登录</button></form><p class="err">${esc(msg||'')}</p>`);
   if($('w3'))$('w3').onclick=()=>{location.href=BASE+'/lotto/w3/login?back=desk'};
   $('lf').onsubmit=async e=>{e.preventDefault();key=$('lk').value.trim();if(!key)return;const r=await api('GET','/state');if(r.err)return;try{sessionStorage.setItem(KK,key)}catch(x){}loadAct(r);ask()}}
-function loadAct(r){act=(r.acts||[]).find(a=>a.id===r.current)||null;$('act').textContent=act?'· '+act.name:'· 现在没有进行中的抽奖';
+function loadAct(r){act=(r.acts||[]).find(a=>a.id===r.current)||null;ghOn=!!r.github;$('act').textContent=act?'· '+act.name:'· 现在没有进行中的抽奖';
   $('adm').innerHTML=`${w3?esc(w3)+' ':'工作人员'}已登录 <button class="lbtn sm" id="out">退出</button>`;
   $('out').onclick=async()=>{if(!confirm('退出登录？'))return;if(w3)await fetch(BASE+'/lotto/logout',{method:'POST'}).catch(()=>{});logout('')}}
 function ask(msg){who=null;left=0;sc.ready(false);
   panel(`<h2>输入你的工号</h2><form id="ef"><input type="text" id="emp" maxlength="32" placeholder="工号" autocomplete="off" spellcheck="false"><button class="pbtn">查次数</button></form><p class="err">${esc(msg||'')}</p>
     <p>抽完以后，组织方按工号统一联系你兑奖。</p><p>还没有次数？关注内源社区、猫猫观察局，加入猫猫群，或者参加现场的互动游戏，到工作人员那里领。</p>`);
   $('ef').onsubmit=async e=>{e.preventDefault();const v=$('emp').value.trim();if(!v)return;const r=await api('GET','/emp?emp='+encodeURIComponent(v));
-    if(r.err)return r.err==='auth'?0:ask(ERR[r.err]||'没查到');who=r.emp;left=r.left;ready()}}
+    if(r.err)return r.err==='auth'?0:ask(ERR[r.err]||'没查到');who=r.emp;left=r.left;gh={user:r.gh,done:(r.grants||[]).some(g=>g.src==='github')};ready()}}
 function ready(){sc.ready(left>0);
   panel(`<h2>${esc(who)}</h2><p class="big">${left>0?`还有 ${esc(left)} 次`:'还没有次数'}</p>${left>0?'<p>转一下扭蛋机，扭到什么就是什么。</p>':'<p>关注内源社区、猫猫观察局，加入猫猫群，或者参加现场的互动游戏，到工作人员那里领。</p>'}
-    <div class="row">${left>0?'<button class="pbtn" id="go">转一下 <kbd>空格</kbd></button>':''}<button class="lbtn" id="bye">${left>0?'不是我':'好'}</button></div><p class="err"></p>`);
-  if($('go'))$('go').onclick=spin;$('bye').onclick=()=>ask()}
+    <div class="row">${left>0?'<button class="pbtn" id="go">转一下 <kbd>空格</kbd></button>':''}<button class="lbtn" id="bye">${left>0?'不是我':'好'}</button></div><p class="err"></p>${ghBox()}`);
+  if($('go'))$('go').onclick=spin;$('bye').onclick=()=>ask();if($('ghf'))$('ghf').onsubmit=ghSend}
+// star 了 clowder-ai 的，填 GitHub 用户名领 1 次（一个用户名只给一个工号用）。这个活动里领过就只说一句
+const ghBox=()=>!ghOn||!gh?'':gh.done?`<p class="gh">GitHub star 已经领过了${gh.user?'（@'+esc(gh.user)+'）':''}</p>`:
+  `<div class="gh"><p>在 GitHub 上 star 了 clowder-ai？填你的 GitHub 用户名，查到了加 1 次。${gh.user?'（这个工号绑的是 @'+esc(gh.user)+'）':''}</p>
+    <form id="ghf"><input type="text" id="ghu" maxlength="40" placeholder="GitHub 用户名" autocomplete="off" spellcheck="false" value="${esc(gh.user||'')}"><button class="lbtn">查一下</button></form><p class="err" id="ghe"></p></div>`;
+const GH_ERR={taken:'这个 GitHub 账号已经被别的工号用过了',bound:'这个工号已经绑了别的 GitHub 账号',gh:'GitHub 没查成，过一会儿再试',soon:'刚查过，过几秒再试',bad:'GitHub 用户名不对：字母、数字和 -',act:ERR.act,github:'没开 GitHub 查询'};
+async function ghSend(e){e.preventDefault();const u=$('ghu').value.trim();if(!u)return;const b=$('ghf').querySelector('button');b.disabled=true;$('ghe').textContent='在查……';
+  const r=await api('POST','/github',{emp:who,user:u});if(r.err==='auth')return;b.disabled=false;
+  if(r.err){$('ghe').textContent=GH_ERR[r.err]+(r.err==='bound'&&r.user?'（@'+r.user+'）':'');return}
+  if(r.no){$('ghe').textContent=`@${r.user} 没有 star clowder-ai`;return}
+  left=r.left;gh={user:r.user,done:true};ready();sfx('coin')}
 function result(d){const won=d.tier>0;
   panel(`<p class="tier ${won?'win':''}">${esc(TIER(d.tier))}${won?'！':''}</p>${won?`<p class="prize">${esc(d.name)}</p><p>${esc(who)} · 组织方会按工号联系你兑奖</p>`:'<p>下次一定。</p>'}
     <div class="row">${left>0?`<button class="pbtn" id="go">再转一次 <kbd>空格</kbd></button>`:''}<button class="lbtn" id="bye">${left>0?`先不抽了（还有 ${esc(left)} 次）`:'完成'}</button></div>`);

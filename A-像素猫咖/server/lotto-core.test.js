@@ -56,7 +56,14 @@ test('不在活动时间里不能抽；过了结束时间当作结束',()=>{cons
 
 test('读库时认不出的状态当暂停，缺的补上',()=>{const s=L.load({acts:[{id:'x',status:'weird'}]});
   assert.equal(s.acts[0].status,'paused');assert.deepEqual(s.acts[0].prizes,[]);assert.deepEqual(s.draws,[]);
-  assert.deepEqual(L.load(null),L.fresh())});
+  assert.deepEqual(L.load(null),L.fresh());assert.deepEqual(L.load({gh:[]}).gh,{})});
 
 test('奖品参数不对拒绝',()=>{const s=live();for(const p of [{tier:1,name:'x',weight:0,stock:1},{tier:1,name:'',weight:1,stock:1},{tier:10,name:'x',weight:1,stock:1},{tier:1,name:'x',weight:1,stock:-1}])
   assert.equal(L.addPrize(s,'a1',p,'q').err,'bad');assert.equal(s.acts[0].prizes.length,2)});
+
+test('GitHub 用户名：一个用户名只给一个工号，一个工号只认一个用户名',()=>{const s=live();
+  assert.deepEqual(L.ghBind(s,'w001','@Octo-Cat'),{user:'octo-cat'});assert.deepEqual(L.ghBind(s,'W001','octo-cat'),{user:'octo-cat'});
+  assert.equal(L.ghCan(s,'W002','OCTO-CAT').err,'taken');assert.deepEqual(L.ghCan(s,'W001','other'),{err:'bound',user:'octo-cat'});
+  assert.equal(L.ghOf(s,'w001'),'octo-cat');assert.equal(L.ghOf(s,'W002'),null);
+  for(const u of ['','-a','a-','a--b','a_b','中文','x'.repeat(40)])assert.equal(L.ghCan(s,'W003',u).err,'bad',u);
+  assert.deepEqual(L.ghCan(s,'W003','a-b'),{user:'a-b'});assert.equal(Object.keys(s.gh).length,1)});

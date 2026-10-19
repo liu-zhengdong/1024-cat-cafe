@@ -9,12 +9,16 @@ function mock(){const codes=new Map([['c-alice','W777'],['c-boss','A001'],['c-ba
     if(u.pathname==='/authorize'){const back=new URL(u.searchParams.get('redirect_uri'));back.searchParams.set('code',u.searchParams.get('login_as'));back.searchParams.set('state',u.searchParams.get('state'));res.writeHead(302,{Location:back.href});return res.end()}
     if(u.pathname==='/token'){let b='';req.on('data',d=>b+=d);req.on('end',()=>{const f=new URLSearchParams(b);if(f.get('client_secret')!=='s3cret'||!codes.has(f.get('code')))return j({error:'bad'},400);j({access_token:'tk-'+f.get('code')})});return}
     if(u.pathname==='/userinfo'){const c=(req.headers.authorization||'').replace('Bearer tk-','');return codes.has(c)?j({data:{uid:codes.get(c),cn:'测试'}}):j({},401)}
+    // 假的 GitHub：octo star 了，nostar 没有，boom 让接口挂掉
+    const gm=/^\/users\/([^/]+)\/starred$/.exec(u.pathname);if(gm){const n=gm[1].toLowerCase();if(n==='boom')return j({},500);if(n==='ghost')return j({},404);
+      return j(n==='octo'&&u.searchParams.get('page')==='1'?[{full_name:'other/repo'},{full_name:'zts212653/clowder-ai'}]:[])}
     if(u.pathname==='/codehub'){if(fail)return j({},503);return j({starred:u.searchParams.get('user')==='W777'})}
     if(u.pathname==='/jiaxian'){let b='';req.on('data',d=>b+=d);req.on('end',()=>j({list:JSON.parse(b).emp==='W777'?[1]:[]}));return}
     j({},404)});
   return new Promise(r=>srv.listen(0,'127.0.0.1',()=>r({srv,port:srv.address().port,setFail:v=>{fail=v}})))}
 
-function start(dir,port){return new Promise((r,x)=>{const p=spawn(process.execPath,['server/server.js'],{cwd:ROOT,env:{...process.env,DATA_DIR:dir,ADMIN_KEY:'k',PORT:String(port)}});
+const GAP=600,wait=ms=>new Promise(r=>setTimeout(r,ms));
+function start(dir,port){return new Promise((r,x)=>{const p=spawn(process.execPath,['server/server.js'],{cwd:ROOT,env:{...process.env,DATA_DIR:dir,ADMIN_KEY:'k',PORT:String(port),LOTTO_REFRESH_GAP_MS:String(GAP)}});
   p.stdout.on('data',()=>r(p));p.stderr.on('data',d=>process.stderr.write(d));p.on('exit',c=>x(new Error('服务端退出了 '+c)))})}
 
 test('w3 登录、刷新发次数、自己抽、白名单进后台',async t=>{
@@ -23,7 +27,7 @@ test('w3 登录、刷新发次数、自己抽、白名单进后台',async t=>{
   fs.writeFileSync(path.join(dir,'lotto-config.json'),JSON.stringify({
     w3:{authorize:MB+'/authorize',token:MB+'/token',userinfo:MB+'/userinfo',clientId:'cat',clientSecret:'s3cret',redirect:B+'/api/lotto/w3/callback',empField:'data.uid',nameField:'data.cn'},
     admins:['a001'],keyLogin:false,
-    sources:{codehub:{url:MB+'/codehub?user={emp}',path:'starred',equals:true},jiaxian:{url:MB+'/jiaxian',method:'POST',body:{emp:'{emp}'},path:'list'}}}));
+    sources:{codehub:{url:MB+'/codehub?user={emp}',path:'starred',equals:true},jiaxian:{url:MB+'/jiaxian',method:'POST',body:{emp:'{emp}'},path:'list'},github:{repo:'zts212653/clowder-ai',api:MB}}}));
   const srv=await start(dir,PORT);t.after(()=>{srv.kill();M.srv.close()});
   // 一个只会记 cookie 的浏览器：跟着跳转走，带上 Path 对得上的 cookie
   const jar=()=>{const c={};return{async go(url,opt={}){let u=url;for(let i=0;i<6;i++){const r=await fetch(u,{...opt,redirect:'manual',headers:{...(opt.headers||{}),cookie:Object.entries(c).map(([k,v])=>k+'='+v).join('; ')}});
@@ -56,6 +60,22 @@ test('w3 登录、刷新发次数、自己抽、白名单进后台',async t=>{
   // 刷新：codehub star 了、稼先关注了，各发 1 次；再刷新（过了 10 秒的限制以后）不再发
   r=await (await alice.go(B+'/api/lotto/refresh',{method:'POST'})).r.json();assert.deepEqual(r.got.sort(),['codehub','jiaxian']);assert.equal(r.left,2);
   r=await (await alice.go(B+'/api/lotto/refresh',{method:'POST'})).r.json();assert.equal(r.err,'soon');
+
+  // GitHub：填 star 了的用户名发 1 次；再填不再发；没 star 的、被别的工号用过的、这个工号已经绑了别的，都不发
+  const gh=(J,user)=>J.go(B+'/api/lotto/github',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user})}).then(async x=>[x.r.status,await x.r.json()]);
+  await wait(GAP+50);let [gs,gj]=await gh(alice,'@Octo');assert.equal(gs,200);assert.equal(gj.got,true);assert.equal(gj.left,3);assert.equal(gj.user,'octo');
+  [gs,gj]=await gh(alice,'octo');assert.equal(gj.dup,true);assert.equal(gj.left,3);
+  [gs,gj]=await gh(alice,'someone-else');assert.equal(gs,409);assert.equal(gj.err,'bound');assert.equal(gj.user,'octo');
+  r=await (await alice.go(B+'/api/lotto/me')).r.json();assert.equal(r.github,true);assert.equal(r.me.gh,'octo');assert.equal(r.me.got.github,true);
+  // 前台替 A001 填同一个用户名：被 W777 用过了
+  let [ds,dj]=await bo('github',{emp:'A001',user:'OCTO'});assert.equal(ds,409);assert.equal(dj.err,'taken');
+  [ds,dj]=await bo('github',{emp:'A001',user:'nostar'});assert.equal(dj.no,true);assert.equal(dj.left,0);
+  await wait(GAP+50);[ds,dj]=await bo('github',{emp:'A001',user:'boom'});assert.equal(ds,502);assert.equal(dj.err,'gh');
+  await wait(GAP+50);[ds,dj]=await bo('github',{emp:'A001',user:'ghost'});assert.equal(dj.no,true);
+  [ds,dj]=await bo('github',{emp:'A001',user:'bad_name'});assert.equal(ds,400);
+  // 没绑上的都没留下：nostar、ghost 还能被别人用
+  [ds,dj]=await bo('emp?emp=A001');assert.equal(dj.gh,null);
+  await bo('grant',{act,emp:'W777',n:-1,why:'测试减回去'});
 
   // 自己抽：两次都中（只有一档、库存够），第三次没次数
   for(let i=0;i<2;i++){r=await (await alice.go(B+'/api/lotto/draw',{method:'POST'})).r.json();assert.equal(r.draw.name,'猫杯');assert.equal(r.draw.via,'w3')}
