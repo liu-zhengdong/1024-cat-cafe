@@ -78,5 +78,8 @@ const R={
   'GET /settings':()=>[200,S.pubSettings()],
   'POST /settings':({body})=>{const bad=S.setSettings(body&&typeof body==='object'&&!Array.isArray(body)?body:{});if(bad)return[400,{err:bad}];const g=S.pubSettings();live.cfg(g);return[200,{ok:true,settings:g}]}};
 
-function handle(method,sub,ctx){const a=auth(ctx.req,ctx.ip);if(a===429)return[429,{err:'lock'}];if(a)return[401,{err:'key'}];if(sub.startsWith('/lotto/'))return lotto.handle(method,sub.slice(7),{...ctx,body:ctx.body&&typeof ctx.body==='object'?ctx.body:{}});const h=R[method+' '+sub];return h?h(ctx):[404,{err:'none'}]}
-return{KEY,handle}};
+// 抽奖的后台接口还有一种进法：w3 登录了、工号在白名单里（lotto-config.json）；配置里关了口令（keyLogin:false）就只认这一种
+function handle(method,sub,ctx){if(sub.startsWith('/lotto/')){const by=lotto.adminBy(ctx.req),body=ctx.body&&typeof ctx.body==='object'?ctx.body:{};
+    if(by)return lotto.handle(method,sub.slice(7),{...ctx,body,by});if(!lotto.keyLogin)return[401,{err:'key'}]}
+  const a=auth(ctx.req,ctx.ip);if(a===429)return[429,{err:'lock'}];if(a)return[401,{err:'key'}];if(sub.startsWith('/lotto/'))return lotto.handle(method,sub.slice(7),{...ctx,body:ctx.body&&typeof ctx.body==='object'?ctx.body:{}});const h=R[method+' '+sub];return h?h(ctx):[404,{err:'none'}]}
+return{KEY,handle,lotto}};

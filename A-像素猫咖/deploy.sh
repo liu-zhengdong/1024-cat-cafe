@@ -264,7 +264,7 @@ unit_dir(){ sed -n 's/^WorkingDirectory=//p' "${UNIT_FILE}"; }
 # 数据目录只放猫咖自己的东西。--data 指到了放着别的文件的目录：不改它的权限、不往里写、不把别人的文件打进备份
 check_data(){ [ -d "${DATA_DIR}" ] || return 0; local f
   for f in "${DATA_DIR}"/* "${DATA_DIR}"/.[!.]*; do [ -e "${f}" ] || continue
-    case "${f##*/}" in cats.json|cats.json.tmp|admin.key|lotto.json|lotto.json.tmp|lotto-admins.txt|lost+found|.DS_Store) ;;
+    case "${f##*/}" in cats.json|cats.json.tmp|admin.key|lotto.json|lotto.json.tmp|lotto-config.json|lost+found|.DS_Store) ;;
       *) die "数据目录 ${DATA_DIR} 里有不是猫咖的东西（${f##*/}）：给猫咖单独建一个空目录，用 --data 指过去";; esac
   done; }
 # 数据目录里的名册有几只猫：升级时换了目录、没拷 deploy.env，这里就会是"还没有名册"

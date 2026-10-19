@@ -13,10 +13,13 @@ async function api(method,path,body){const r=await fetch(API+path,{method,header
   if(r.status===401||r.status===429){lock(r.status===429?'试错太多次了，过一会儿再来':'口令不对');throw new Error('auth')}
   const ct=r.headers.get('content-type')||'';if(ct.includes('text/csv'))return{blob:await r.blob(),name:decodeURIComponent((/filename\*=UTF-8''([^;]+)/.exec(r.headers.get('content-disposition')||'')||[])[1]||'名单.csv')};
   return{status:r.status,...await r.json().catch(()=>({}))}}
-function lock(msg){key='';try{sessionStorage.removeItem(KK)}catch(e){}$('app').hidden=true;$('out').hidden=true;$('login').hidden=false;$('loginerr').textContent=msg||'';$('live').textContent=''}
+function lock(msg){key='';w3=null;document.body.classList.remove('w3only');try{sessionStorage.removeItem(KK)}catch(e){}$('app').hidden=true;$('out').hidden=true;$('login').hidden=false;$('loginerr').textContent=msg||'';$('live').textContent=''}
+// 抽奖后台的另一种进法（docs/抽奖系统.md）：w3 登录、工号在白名单里。只给"现场抽奖"那一块，别的还是要口令
+let w3=null;const LBASE=API.replace(/\/admin$/,'')+'/lotto';
+async function unlockLotto(emp){w3=emp;document.body.classList.add('w3only');$('login').hidden=true;$('app').hidden=false;$('out').hidden=false;$('live').textContent=emp+' 用 w3 登录 · 只管现场抽奖';await LottoAdmin.load()}
 async function unlock(){$('login').hidden=true;$('app').hidden=false;$('out').hidden=false;await Promise.all([loadStats(),loadCats(),loadDraws(),loadShop(),window.LottoAdmin?LottoAdmin.load():null])}
 $('loginf').onsubmit=async e=>{e.preventDefault();key=$('key').value.trim();if(!key)return;try{await api('GET','/stats');try{sessionStorage.setItem(KK,key)}catch(x){}$('key').value='';unlock()}catch(x){}};
-$('out').onclick=()=>lock('');
+$('out').onclick=async()=>{if(w3)await fetch(LBASE+'/logout',{method:'POST'}).catch(()=>{});lock('')};
 
 /* ---------- 时间 ---------- */
 const p2=n=>String(n).padStart(2,'0');
@@ -111,5 +114,9 @@ $('etoggle').onclick=()=>{const on=!shop.entry;if(!on&&!confirm('截止抽奖登
   saveShop({entry:on},$('etmsg'),on?'重新开放了':'截止了')};
 
 // 现场抽奖那一块（js/admin-lotto.js）用同一套接口、弹窗和小工具
-window.AdminKit={api,esc,when,download,say,modal,close,live:()=>!!key&&!$('app').hidden};
-if(key)api('GET','/stats').then(unlock).catch(()=>{});else lock('')})();
+window.AdminKit={api,esc,when,download,say,modal,close,live:()=>(!!key||!!w3)&&!$('app').hidden};
+// 打开时：开了 w3 就多一个"用 w3 登录"；这个浏览器已经用 w3 登录了、在白名单里，直接进抽奖那一块。从 w3 回来的，地址上带着成没成
+(async()=>{const h=new URLSearchParams(location.hash.slice(1)),bad=h.get('lotto-err');if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+  const m=await fetch(LBASE+'/me').then(r=>r.json()).catch(()=>({}));$('w3in').hidden=!m.w3;$('w3in').onclick=()=>{location.href=LBASE+'/w3/login?back=admin'};
+  if(key)return api('GET','/stats').then(unlock).catch(()=>{});if(m.me&&m.me.admin)return unlockLotto(m.me.emp);
+  lock(bad?'w3 登录没成：'+bad:m.me?m.me.emp+' 不在抽奖后台的白名单里':'')})()})();

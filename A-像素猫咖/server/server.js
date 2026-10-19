@@ -70,15 +70,19 @@ function move(req,res){const h=req.headers,uri=String(h['x-original-uri']||req.u
   res.writeHead(302,{'Cache-Control':'no-store',...(again?{Location:'./#move=','Set-Cookie':`cat1024_mv=; Max-Age=0; Path=${at}; Secure`}:
     {Location:'http://'+host+uri,'Set-Cookie':`cat1024_mv=1; Max-Age=60; Path=${at}; Secure; HttpOnly; SameSite=Lax`})});res.end()}
 
-function reply(res,out){if(out&&out.csv!=null){res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(out.name),'Cache-Control':'no-store'});return res.end(out.csv)}
-  res.writeHead(out[0],{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(out[1]))}
+// 回给浏览器：[状态, JSON, 另外的响应头]、{csv, name} 一份 CSV、{redirect, cookies} 一次跳转（抽奖的 w3 登录用）
+function reply(res,out){if(out&&out.redirect){res.writeHead(302,{Location:out.redirect,'Cache-Control':'no-store',...(out.cookies?{'Set-Cookie':out.cookies}:{})});return res.end()}
+  if(out&&out.csv!=null){res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(out.name),'Cache-Control':'no-store'});return res.end(out.csv)}
+  res.writeHead(out[0],{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...(out[2]||{})});res.end(JSON.stringify(out[1]))}
 const server=http.createServer((req,res)=>{const u=new URL(req.url,'http://x'),ip=ipOf(req);
   if(!u.pathname.startsWith('/api/'))return u.pathname==='/move.html'?move(req,res):serveFile(req,res,u.pathname);
-  const sub=u.pathname.slice(4),isAdmin=sub.startsWith('/admin/'),h=isAdmin?null:API[req.method+' '+sub];
-  if(!isAdmin&&!h){res.writeHead(404,{'Content-Type':'application/json'});return res.end('{"err":"none"}')}
+  // /api/lotto/* 是抽奖的用户接口（server/lotto.js，docs/抽奖系统.md）：w3 登录、自己抽；有的要等外面的接口，回的是 Promise
+  const sub=u.pathname.slice(4),isAdmin=sub.startsWith('/admin/'),isLotto=sub.startsWith('/lotto/'),h=isAdmin||isLotto?null:API[req.method+' '+sub];
+  if(!isAdmin&&!isLotto&&!h){res.writeHead(404,{'Content-Type':'application/json'});return res.end('{"err":"none"}')}
   let raw='',big=false;req.on('data',d=>{raw+=d;if(raw.length>BODY_MAX){big=true;req.destroy()}});
   req.on('end',()=>{if(big)return;let body={};if(raw){try{body=JSON.parse(raw)}catch(e){res.writeHead(400);return res.end('{"err":"bad"}')}}
-    let out;try{out=isAdmin?admin.handle(req.method,sub.slice(6),{body,ip,req,url:u}):h({body,ip,me:bearer(req)})}catch(e){console.error(e);out=[500,{err:'server'}]}reply(res,out)})});
+    let out;try{out=isAdmin?admin.handle(req.method,sub.slice(6),{body,ip,req,url:u}):isLotto?admin.lotto.user(req.method,sub.slice(7),{body:body&&typeof body==='object'?body:{},ip,req,url:u}):h({body,ip,me:bearer(req)})}catch(e){console.error(e);out=[500,{err:'server'}]}
+    Promise.resolve(out).then(o=>reply(res,o),e=>{console.error(e);reply(res,[500,{err:'server'}])})})});
 server.on('upgrade',(req,socket,head)=>{if(new URL(req.url,'http://x').pathname==='/ws')live.upgrade(req,socket,head);else socket.destroy()});
 // 口令只在开在终端里时打出来：放在后台时日志进文件或 journald，共用的服务器上别的账号可能读得到
 server.listen(PORT,HOST,()=>{const base=`http://${HOST==='0.0.0.0'?'localhost':HOST}:${PORT}`,where=process.env.ADMIN_KEY?'环境变量 ADMIN_KEY':path.join(S.DATA,'admin.key');
