@@ -84,6 +84,13 @@
   .code canvas{width:36px;height:36px}.code span{font-size:12px;color:var(--sub)}.code em{font-style:normal;font-size:11px;color:var(--dim)}
   #modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
   #modal input{width:100%}
+  /* 现场抽奖 */
+  select{background:#140e1a;border:2px solid var(--line);padding:5px 8px;color:var(--ink);font:inherit}
+  #lotto h3{margin:16px 0 8px;font-size:13px;font-weight:600;padding-top:12px;border-top:2px solid var(--line)}
+  #lotto table{min-width:0}#lotto .tbl table{min-width:560px}
+  #lotto .tag.live{border-color:var(--ok);color:var(--ok)}
+  #lemp{margin-top:10px}#lemp b.big{font-size:20px;color:var(--acc);margin-right:8px}
+  #lemp ul{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--sub)}
 </style>
 </head>
 <body>
@@ -96,6 +103,25 @@
     <p class="hint">口令在服务器的 <code>server/data/admin.key</code> 里，服务端启动时也会打印出来（也可以用环境变量 ADMIN_KEY 指定）。关掉这个标签页就要重新输入。</p>
   </section>
   <div id="app" hidden>
+    <section class="card" id="lotto">
+      <h2>现场抽奖<small>独立的一套：自己的活动、奖池和次数，和下面的集章抽奖互不相干（docs/抽奖系统.md）</small></h2>
+      <div class="bar"><select id="lact"></select><span class="tag" id="lstat">—</span><span id="lbtns" class="acts"></span><span class="sp"></span><a class="lbtn" href="desk.html" target="_blank" rel="noopener" style="text-decoration:none">打开前台抽奖页</a><button class="lbtn" id="lnew">新建活动</button></div>
+      <p class="hint" id="lsum"></p>
+      <h3>奖品</h3>
+      <div class="tbl"><table><thead><tr><th>等级</th><th>奖品</th><th class="n">权重</th><th class="n">库存</th><th class="n">已抽</th><th class="n">还剩</th><th class="n">此刻的概率</th><th></th></tr></thead><tbody id="lprizes"></tbody></table></div>
+      <div class="form" style="margin-top:10px"><select id="lptier"><option value="1">一等奖</option><option value="2">二等奖</option><option value="3">三等奖</option><option value="4">四等奖</option><option value="5">五等奖</option><option value="0">谢谢参与</option></select>
+        <input type="text" id="lpname" maxlength="30" placeholder="奖品名称"><label>权重 <input type="number" id="lpw" min="1" value="1"></label><label>库存 <input type="number" id="lpstock" min="0" placeholder="空=不限" style="width:96px"></label><button class="pbtn" id="lpadd">加一个奖品</button><span class="msg" id="lpmsg"></span></div>
+      <p class="hint">按权重抽：一个奖品被抽到的机会 = 它的权重 ÷ 还有库存的奖品权重之和；库存抽完的自动退出。不配"谢谢参与"就是每次必中，那样大家抽的总次数不能多于奖品总数，不够了会碰到"奖池已空"，要补货。</p>
+      <h3>加次数</h3>
+      <div class="form"><input type="text" id="lemp-in" maxlength="32" placeholder="工号"><label>次数 <input type="number" id="ln" value="1" step="1"></label>
+        <select id="lwhy"><option>关注进群</option><option>互动游戏</option><option>github star 截图</option><option>其他</option></select><input type="text" id="lnote" maxlength="40" placeholder="备注（选填）"><button class="pbtn" id="lgo">加</button><button class="lbtn" id="lq">只查</button><span class="msg" id="lgmsg"></span></div>
+      <div id="lemp"></div>
+      <p class="hint">次数填负数就是减，最多减到已经抽掉的。每一笔都记着谁、什么时候、为什么加的。</p>
+      <h3>抽奖记录</h3>
+      <div class="bar"><select id="lft"><option value="">全部等级</option><option value="1">一等奖</option><option value="2">二等奖</option><option value="3">三等奖</option><option value="4">四等奖</option><option value="5">五等奖</option><option value="0">没中</option></select><input type="text" id="lfe" placeholder="按工号找"><span class="sp"></span><button class="lbtn" id="lexw">导出中奖名单</button><button class="lbtn" id="lexa">导出全部记录</button></div>
+      <div class="tbl"><table><thead><tr><th>时间</th><th>工号</th><th>几等奖</th><th>奖品</th><th>怎么抽的</th></tr></thead><tbody id="lrows"></tbody></table></div>
+      <p class="more" id="lmore"></p>
+    </section>
     <div class="stats" id="stats"></div>
     <div class="two">
       <section class="card" id="draw">
@@ -148,5 +174,6 @@
 <script src="js/world-play.js"></script>
 <script src="js/dialog-ui.js"></script>
 <script src="js/admin.js"></script>
+<script src="js/admin-lotto.js"></script>
 </body>
 </html>

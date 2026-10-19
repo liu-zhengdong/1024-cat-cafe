@@ -45,6 +45,8 @@ function draw({n,fresh,how}){n=Math.floor(+n);if(!(n>=1&&n<=500))return[400,{err
 const fmt=t=>{if(!t)return '';const d=new Date(t),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
 const cell=v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
 const csv=rows=>'﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n')+'\r\n';
+// 抽奖系统（docs/抽奖系统.md）：接口挂在后台下面 /api/admin/lotto/*，先沿用后台口令
+const lotto=require('./lotto')(S,{csv,fmt});
 const wonNos=L=>[...new Set(L.flatMap(won))].sort((a,b)=>a-b).map(n=>'第'+n+'轮').join(' ');
 function exportCsv(q){const what=q.get('what')||'people';
   if(what==='draw'){const d=S.db.draws.find(d=>d.no===+q.get('no'));if(!d)return[404,{err:'none'}];
@@ -76,5 +78,5 @@ const R={
   'GET /settings':()=>[200,S.pubSettings()],
   'POST /settings':({body})=>{const bad=S.setSettings(body&&typeof body==='object'&&!Array.isArray(body)?body:{});if(bad)return[400,{err:bad}];const g=S.pubSettings();live.cfg(g);return[200,{ok:true,settings:g}]}};
 
-function handle(method,sub,ctx){const a=auth(ctx.req,ctx.ip);if(a===429)return[429,{err:'lock'}];if(a)return[401,{err:'key'}];const h=R[method+' '+sub];return h?h(ctx):[404,{err:'none'}]}
+function handle(method,sub,ctx){const a=auth(ctx.req,ctx.ip);if(a===429)return[429,{err:'lock'}];if(a)return[401,{err:'key'}];if(sub.startsWith('/lotto/'))return lotto.handle(method,sub.slice(7),{...ctx,body:ctx.body&&typeof ctx.body==='object'?ctx.body:{}});const h=R[method+' '+sub];return h?h(ctx):[404,{err:'none'}]}
 return{KEY,handle}};

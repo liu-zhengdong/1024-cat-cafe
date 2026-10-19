@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1024 猫咖 · 现场抽奖</title>
+<link rel="preload" href="fonts/fusion-pixel-12.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  /* 前台抽奖页：放在会场前台的电脑上，管理员登录一次，之后来一个人输一次工号、转一次扭蛋机。设计见 docs/抽奖系统.md。
+     颜色、像素窗框、像素按钮和店里（index.html）是同一套；一格像素固定 4 个屏幕像素，字是缝合像素字体的整数倍。 */
+  @font-face{font-family:FusionPixel;src:url(fonts/fusion-pixel-12.woff2) format("woff2");font-display:block}
+  :root{--bg:#1c1424;--pan:#241a2e;--line:#4a3a5c;--ink:#fff4dc;--sub:#b9a8c9;--acc:#ffd84a;--ok:#9ccc98;--bad:#f7a58c;--dim:#8a7a9a;--dk:#140e1a;--sh:#0b0710;--u:4px;--d2:3px}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:24px/36px FusionPixel,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:none;overflow:hidden}
+  button,input{font:inherit;color:inherit}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  .win{--wu:var(--u);--wl:#fff4dc;--wd:var(--dk);--ws:var(--sh);background:var(--pan);
+    box-shadow:0 calc(var(--wu)*-1) var(--wl),0 var(--wu) var(--wl),calc(var(--wu)*-1) 0 var(--wl),var(--wu) 0 var(--wl),
+      calc(var(--wu)*-1) calc(var(--wu)*-1) var(--wd),var(--wu) calc(var(--wu)*-1) var(--wd),calc(var(--wu)*-1) var(--wu) var(--wd),var(--wu) var(--wu) var(--wd),
+      0 calc(var(--wu)*-2) var(--wd),0 calc(var(--wu)*2) var(--wd),calc(var(--wu)*-2) 0 var(--wd),calc(var(--wu)*2) 0 var(--wd),
+      calc(var(--wu)*3) var(--wu) var(--ws),var(--wu) calc(var(--wu)*3) var(--ws),calc(var(--wu)*2) calc(var(--wu)*2) var(--ws)}
+  .pbtn,.lbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:12px;border:0;margin:var(--d2);padding:calc(var(--d2)*2) 24px calc(var(--u) + var(--d2));text-decoration:none;white-space:nowrap;cursor:pointer;
+    box-shadow:0 calc(var(--d2)*-1) var(--dk),0 var(--d2) var(--dk),calc(var(--d2)*-1) 0 var(--dk),var(--d2) 0 var(--dk),inset 0 var(--d2) var(--bh),inset 0 calc(var(--u)*-1) var(--bl)}
+  .pbtn{--bh:#fff2a8;--bl:#c09a26;background:var(--acc);color:#241a2e}.pbtn:hover{background:#ffe27a}
+  .lbtn{--bh:#5c4a72;--bl:#1c1424;background:#3a2c4c;color:var(--ink)}.lbtn:hover{background:#45365a}
+  .pbtn:active,.lbtn:active{transform:translateY(var(--d2))}
+  .pbtn[disabled]{--bh:#55456a;--bl:#2a2036;background:#4a3a5c;color:var(--dim);cursor:default;transform:none}
+  .lbtn.sm{font-size:12px;line-height:18px;padding:var(--d2) 12px var(--u)}
+  kbd{display:inline-block;padding:0 8px 3px;font:inherit;font-size:12px;line-height:18px;background:#f0c63a;color:#241a2e;box-shadow:inset 0 -3px #b8962a}
+  input[type=text],input[type=password]{background:var(--dk);border:0;box-shadow:0 0 0 var(--u) var(--line);padding:8px 16px;outline:none;letter-spacing:2px}
+  input:focus{box-shadow:0 0 0 var(--u) var(--acc)}
+
+  #page{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+  header{display:flex;align-items:center;gap:24px;padding:16px 32px;font-size:12px;line-height:18px;color:var(--sub)}
+  header b{font-size:24px;line-height:36px;color:var(--ink);font-weight:400}header .sp{flex:1}
+  main{display:grid;grid-template-columns:minmax(0,3fr) minmax(380px,2fr);gap:48px;align-items:center;padding:0 48px;min-height:0}
+  #stage{display:flex;align-items:center;justify-content:center;min-height:0;height:100%}
+  #panel{padding:32px 36px;margin:16px}
+  #panel h2{margin:0 0 16px;font-size:24px;line-height:36px;font-weight:400}
+  #panel p{margin:0 0 16px;color:var(--sub);font-size:12px;line-height:18px}
+  #panel .big{font-size:48px;line-height:60px;color:var(--acc);margin:0 0 8px}
+  #panel .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:24px}
+  #panel form{display:flex;gap:16px;align-items:center}#panel input{flex:1;min-width:0}
+  #panel .err{color:var(--bad);font-size:12px;line-height:18px;min-height:18px;margin:12px 0 0}
+  #panel .tier{font-size:48px;line-height:60px;margin:0}#panel .tier.win{box-shadow:none;background:none;color:var(--acc)}
+  #panel .prize{font-size:24px;line-height:36px;margin:8px 0 16px}
+  footer{padding:12px 32px 20px;font-size:12px;line-height:18px;color:var(--dim);display:flex;gap:24px;flex-wrap:wrap}
+  footer b{color:var(--sub);font-weight:400}
+  #stage{min-width:0;overflow:hidden}
+  @media (max-width:900px){main{grid-template-columns:1fr;padding:0 16px;gap:0}#stage{height:auto;padding:16px 0}#panel{margin:16px 8px;padding:24px 20px}#panel form{flex-wrap:wrap}header{flex-wrap:wrap;gap:8px 16px;padding:16px}footer{padding:12px 16px 20px}html,body{overflow:auto}}
+</style>
+</head>
+<body>
+<div id="page">
+  <header><b>1024 猫咖 · 现场抽奖</b><span id="act"></span><span class="sp"></span><span id="adm"></span></header>
+  <main>
+    <div id="stage"><canvas id="cv"></canvas></div>
+    <section class="win" id="panel"></section>
+  </main>
+  <footer><span><b>Clowder AI</b> · 把孤立的 AI agent 变成真正的团队</span><span>官网 zts212653.github.io/clowder-ai</span><span>GitHub zts212653/clowder-ai · 点个 Star</span><span>回到工位用内网打开 1024 猫咖，店里还有毛线球和彩蛋</span></footer>
+</div>
+<script src="config.js"></script>
+<script src="js/cat-sprites.js"></script>
+<script src="js/pixel-text.js"></script>
+<script src="js/scene-kit.js"></script>
+<script src="js/world-kit.js"></script>
+<script src="js/world4-kit.js"></script>
+<script src="js/world-play.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/entry-art.js"></script>
+<script src="js/desk.js"></script>
+</body>
+</html>

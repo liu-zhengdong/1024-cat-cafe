@@ -14,7 +14,7 @@ async function api(method,path,body){const r=await fetch(API+path,{method,header
   const ct=r.headers.get('content-type')||'';if(ct.includes('text/csv'))return{blob:await r.blob(),name:decodeURIComponent((/filename\*=UTF-8''([^;]+)/.exec(r.headers.get('content-disposition')||'')||[])[1]||'名单.csv')};
   return{status:r.status,...await r.json().catch(()=>({}))}}
 function lock(msg){key='';try{sessionStorage.removeItem(KK)}catch(e){}$('app').hidden=true;$('out').hidden=true;$('login').hidden=false;$('loginerr').textContent=msg||'';$('live').textContent=''}
-async function unlock(){$('login').hidden=true;$('app').hidden=false;$('out').hidden=false;await Promise.all([loadStats(),loadCats(),loadDraws(),loadShop()])}
+async function unlock(){$('login').hidden=true;$('app').hidden=false;$('out').hidden=false;await Promise.all([loadStats(),loadCats(),loadDraws(),loadShop(),window.LottoAdmin?LottoAdmin.load():null])}
 $('loginf').onsubmit=async e=>{e.preventDefault();key=$('key').value.trim();if(!key)return;try{await api('GET','/stats');try{sessionStorage.setItem(KK,key)}catch(x){}$('key').value='';unlock()}catch(x){}};
 $('out').onclick=()=>lock('');
 
@@ -110,4 +110,6 @@ $('snoff').onclick=()=>{if(!shop.notice)return say($('snmsg'),'现在没有公�
 $('etoggle').onclick=()=>{const on=!shop.entry;if(!on&&!confirm('截止抽奖登记？\n店里不再收新登记和修改，集章卡、前台猫、迎宾立牌都会说截止了；已经登记的照样能抽。\n随时可以重新开放。'))return;
   saveShop({entry:on},$('etmsg'),on?'重新开放了':'截止了')};
 
+// 现场抽奖那一块（js/admin-lotto.js）用同一套接口、弹窗和小工具
+window.AdminKit={api,esc,when,download,say,modal,close,live:()=>!!key&&!$('app').hidden};
 if(key)api('GET','/stats').then(unlock).catch(()=>{});else lock('')})();
