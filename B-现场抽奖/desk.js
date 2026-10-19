@@ -1,25 +1,24 @@
 /* 1024 现场抽奖 · 抽奖页（index.html）。设计见 README.md，接口在 server.js。
    上面是舞台（stage.js）：给围观的人看，扭蛋机、悬念、欢呼、彩带都在那里。下面一条是工作人员的操作条：
    等着 → 抽一次（空格）→ 舞台上演完 → 中了：登记工号（同工号中过先提醒），登记了才能抽下一次；真登记不了就作废，奖品放回奖池
-                                       → 谢谢惠顾：提示发一张猫猫图鉴卡（还有的话）
+                                       → 谢谢惠顾：提示发一张猫猫图鉴卡
    抽到什么是服务端定的：一按就去抽，扭蛋晃着等结果。页面刷新了，没登记的那一次还在，接着登记。 */
 (()=>{
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const TIER=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||'';
-const ERR={closed:'抽奖暂停了（设置页里打开）',empty:'奖池空了：到设置页补货',disk:'没存上：看一下这台电脑的磁盘',net:'连不上抽奖服务：看一下黑窗口还开着没有',bad:'工号不对：字母、数字、- 和 _，2～32 位',none:'没有这一次'};
+const ERR={closed:'抽奖暂停了（设置页里打开）',disk:'没存上：看一下这台电脑的磁盘',net:'连不上抽奖服务：看一下黑窗口还开着没有',bad:'工号不对：字母、数字、- 和 _，2～32 位',none:'没有这一次'};
 const sfx=k=>{try{Sound.sfx(k)}catch(e){}};
 async function api(m,p,b){try{const r=await fetch('api/'+p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});return await r.json()}catch(e){return{err:'net'}}}
 
 /* ---------- 操作条：左边一句话，右边按钮 ---------- */
 let S=null,cur=null,busy=false;   // S：最近一次 /api/state；cur：刚抽到、还在条上的那一次
 const bar=(title,sub,ctl,cls='')=>{$('say').innerHTML=`<b class="${cls}">${title}</b><span>${sub||'&nbsp;'}</span>`;$('ctl').innerHTML=ctl||'';const f=$('ctl').querySelector('input');if(f)setTimeout(()=>f.focus(),30)};
-const stock=()=>!S?'':[...S.prizes.filter(p=>p.tier>0).sort((a,b)=>a.tier-b.tier).map(p=>`${TIER(p.tier)} 剩 ${p.rest===null?'不限':p.rest}`),`图鉴卡 剩 ${Math.max(0,S.card.rest)}`].join(' · ');
+const stock=()=>!S?'':S.allOut?'奖品都发完了，抽到的都是谢谢惠顾':S.prizes.slice().sort((a,b)=>a.tier-b.tier).map(p=>`${TIER(p.tier)} ${p.prob}% 剩 ${p.rest===null?'不限':p.rest}`).join(' · ');
 const GO=label=>`<button class="pbtn" id="go" ${S&&!S.open?'disabled':''}>${label} <kbd>空格</kbd></button>`;
 function idle(msg){cur=null;sc.ready(!!(S&&S.open));
   if(S&&!S.open)return bar('抽奖暂停了','到设置页里点"继续"',GO('抽一次'));
   bar('下一位',msg?`<span class="warn">${esc(msg)}</span>`:esc(S&&S.note?S.note+' · '+stock():'先确认这个人满足条件，再抽 · '+stock()),GO('抽一次'));$('go').onclick=go}
-function lose(d){cur=d;const n=S?Math.max(0,S.card.rest):0;
-  bar('谢谢惠顾',d.card?`<span class="ok">请发一张猫猫图鉴卡</span> · 还剩 ${esc(n)} 张`:'图鉴卡发完了',GO('下一位 · 抽一次'),'t0');$('go').onclick=go}
+function lose(d){cur=d;bar('谢谢惠顾','<span class="ok">请发一张猫猫图鉴卡</span>',GO('下一位 · 抽一次'),'t0');$('go').onclick=go}
 // 中了：登记工号。dup 是同工号中过的那几次（工作人员决定还是登记，还是作废这一次）
 function win(d,{emp='',err='',dup=null}={}){cur=d;
   const sub=dup?`<span class="warn">${esc(dup.emp)} 之前中过：${dup.prev.map(x=>`第 ${x.no} 次 ${esc(TIER(x.tier))}`).join('、')}</span>`:err?`<span class="warn">${esc(err)}</span>`:'登记工号；活动结束后组织方按工号联系兑奖。登记之前不能抽下一次';

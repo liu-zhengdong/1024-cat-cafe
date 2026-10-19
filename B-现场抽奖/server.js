@@ -2,7 +2,8 @@
    PORT=… 换端口；HOST=0.0.0.0 让局域网里别的电脑也打得开（没有口令，自己掂量）；DATA_DIR=… 换数据目录（测试用）。
    - 接口在 /api/*，规则在 core.js。每次改动先写进磁盘（fsync + 换名）再回页面；写不进去就把内存退回改之前。
    - 网页：这个目录里的几个文件；扭蛋机、像素字借猫咖的（../A-像素猫咖/ 的 js/ 和 fonts/，只发下面列出来的几个）。
-   - 每抽 20 次在 data/backups/ 存一份；清空重来之前也存一份。 */
+   - 每抽 20 次在 data/backups/ 存一份；清空重来之前也存一份。
+   - 设置里出错：bad 填得不对、sum 各档概率加起来超过 100%（都不改）。 */
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto'),C=require('./core');
 const PORT=+process.env.PORT||1025,HOST=process.env.HOST||'127.0.0.1',HERE=__dirname,CAT=path.join(HERE,'..','A-像素猫咖');
 const DATA=process.env.DATA_DIR?path.resolve(process.env.DATA_DIR):path.join(HERE,'data'),FILE=path.join(DATA,'lotto.json'),BAK=path.join(DATA,'backups');
@@ -22,9 +23,9 @@ const rnd=()=>crypto.randomInt(2**47)/2**47,id=()=>crypto.randomBytes(4).toStrin
 
 /* ---------- 接口 ---------- */
 const pubPrize=p=>({...p,rest:C.rest(p)});
-const state=()=>({open:st.open,note:st.note,card:{...st.card,rest:st.card.stock-st.card.given},prizes:st.prizes.map(pubPrize),pending:C.winOf(st),
+const state=()=>({open:st.open,note:st.note,cards:C.cards(st),lose:C.loseProb(st),allOut:st.prizes.length>0&&st.prizes.every(C.out),prizes:st.prizes.map(pubPrize),pending:C.winOf(st),
   total:st.draws.length,recent:st.draws.slice(-12).reverse()});
-const TIER_N=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||String(t);
+const TIER_N=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||String(t);   // 0 是谢谢惠顾
 const fmt=t=>{if(!t)return '';const d=new Date(t),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`};
 // CSV：带 BOM，Excel 直接打开不乱码；挡掉以 = + - @ 开头的公式
 const cell=v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};

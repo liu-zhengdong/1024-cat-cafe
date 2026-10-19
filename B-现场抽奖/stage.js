@@ -94,7 +94,7 @@ function card(t){const r=A.res,won=r.tier>0,k=t-A.popT,q=won?back(k/.45):ease(k/
   alpha(won?1:cl(k/.4),()=>{const ww=Math.max(6,Math.round(w*s)),hh=Math.max(4,Math.round(h*s)),xx=Math.round(cx-ww/2);
     box(xx-2,y-2,ww+4,hh+4,OL,OL);R(xx-1,y-1,ww+2,hh+2,'#fff4dc');R(xx,y,ww,hh,'#241a2e');R(xx,y,ww,3,col);
     if(s<.9)return;const T=big(TIER(r.tier),won?col:'#b9a8c9');C.drawImage(T,Math.round(cx-T.width/2),y+6);
-    const n=won?PXT.fit(r.name,w-12):r.card?'送你一张图鉴卡':'下次一定';const nw=PXT.w(n);PXT.draw(n,Math.round(cx-nw/2),y+(won?34:32),won?'#fff4dc':'#93f5d2',{shadow:OL})});
+    const n=won?PXT.fit(r.name,w-12):'送你一张图鉴卡';const nw=PXT.w(n);PXT.draw(n,Math.round(cx-nw/2),y+(won?34:32),won?'#fff4dc':'#93f5d2',{shadow:OL})});
   if(won&&k>.3)for(let i=0;i<4;i++)spark(Math.round(x+4+((i*37+Math.floor(t*2)*13)%(w-8))),y-4+((i*11)%(h+8)),t+i*.4)}
 
 function draw(t){A.t=t;const k=t-A.t0;let turn=0,flap=0,jig=0,jx=0;
