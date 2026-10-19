@@ -2,7 +2,8 @@
    上面是舞台（stage.js）：给围观的人看，扭蛋机、悬念、欢呼、彩带都在那里。下面一条是工作人员的操作条：
    等着 → 抽一次（空格）→ 舞台上演完 → 中了：登记工号（同工号中过先提醒），登记了才能抽下一次；真登记不了就作废，奖品放回奖池
                                        → 谢谢惠顾：提示发一张猫猫图鉴卡
-   抽到什么是服务端定的：一按就去抽，扭蛋晃着等结果。页面刷新了，没登记的那一次还在，接着登记。 */
+   抽到什么是服务端定的：一按就去抽，扭蛋晃着等结果。页面刷新了，没登记的那一次还在，接着登记。
+   舞台上还叠着两样页面上的东西（图片清楚）：左边墙上的奖品榜（各档的图片和名称，不写还剩几份），揭晓时跳出来的奖品卡。 */
 (()=>{
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const TIER=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||'';
@@ -13,11 +14,12 @@ async function api(m,p,b){try{const r=await fetch('api/'+p,{method:m,headers:{'C
 /* ---------- 操作条：左边一句话，右边按钮 ---------- */
 let S=null,cur=null,busy=false;   // S：最近一次 /api/state；cur：刚抽到、还在条上的那一次
 const bar=(title,sub,ctl,cls='')=>{$('say').innerHTML=`<b class="${cls}">${title}</b><span>${sub||'&nbsp;'}</span>`;$('ctl').innerHTML=ctl||'';const f=$('ctl').querySelector('input');if(f)setTimeout(()=>f.focus(),30)};
-const stock=()=>!S?'':S.allOut?'奖品都发完了，抽到的都是谢谢惠顾':S.prizes.slice().sort((a,b)=>a.tier-b.tier).map(p=>`${TIER(p.tier)} ${p.prob}% 剩 ${p.rest===null?'不限':p.rest}`).join(' · ');
+// 操作条上只提醒一句：奖品都发完了（还剩几份只在设置页看）
+const stock=()=>S&&S.allOut?' · 奖品都发完了，抽到的都是谢谢惠顾':'';
 const GO=label=>`<button class="pbtn" id="go" ${S&&!S.open?'disabled':''}>${label} <kbd>空格</kbd></button>`;
 function idle(msg){cur=null;sc.ready(!!(S&&S.open));
   if(S&&!S.open)return bar('抽奖暂停了','到设置页里点"继续"',GO('抽一次'));
-  bar('下一位',msg?`<span class="warn">${esc(msg)}</span>`:esc(S&&S.note?S.note+' · '+stock():'先确认这个人满足条件，再抽 · '+stock()),GO('抽一次'));$('go').onclick=go}
+  bar('下一位',msg?`<span class="warn">${esc(msg)}</span>`:esc((S&&S.note?S.note:'先确认这个人满足条件，再抽')+stock()),GO('抽一次'));$('go').onclick=go}
 function lose(d){cur=d;bar('谢谢惠顾','<span class="ok">请发一张猫猫图鉴卡</span>',GO('下一位 · 抽一次'),'t0');$('go').onclick=go}
 // 中了：登记工号。dup 是同工号中过的那几次（工作人员决定还是登记，还是作废这一次）
 function win(d,{emp='',err='',dup=null}={}){cur=d;
@@ -35,17 +37,34 @@ async function voidIt(){if(!confirm(`作废第 ${cur.no} 次的${TIER(cur.tier)}
   if(r.err)return win(cur,{err:ERR[r.err]||'没作废成'});await load();idle(`第 ${r.draw.no} 次作废了，奖品放回奖池`)}
 
 // 抽：条上先换成"转啊转"，同时去抽；舞台演完（onShown）再把结果交给条
-async function go(){if(busy||(cur&&cur.tier>0&&!cur.emp&&!cur.void)||(S&&!S.open))return;if(!sc.spin())return;busy=true;
+async function go(){if(busy||(cur&&cur.tier>0&&!cur.emp&&!cur.void)||(S&&!S.open))return;if(!sc.spin())return;busy=true;hideReveal();
   bar('转啊转……','','');const r=await api('POST','draw');
   if(r.err){busy=false;sc.abort();await load();if(r.err==='pending'){const d=S.pending;return d?win(d,{err:'这一次还没登记'}):idle()}return idle(ERR[r.err]||'没抽成')}
   sc.result(r.draw)}
 function shown(d){busy=false;load().then(()=>d.tier>0?win(d):lose(d))}
 
-async function load(){const r=await api('GET','state');if(r.err)return false;S=r;$('count').textContent=`已经抽了 ${r.total} 次`;return true}
+async function load(){const r=await api('GET','state');if(r.err)return false;S=r;$('count').textContent=`已经抽了 ${r.total} 次`;drawBoard();return true}
+
+/* ---------- 叠在舞台上的：奖品榜、奖品卡 ---------- */
+const img=f=>f?`<img src="img/${esc(f)}" alt="">`:'';
+// 没传图片的，用等级的颜色写一个数字占着
+const pic=(f,tier)=>f?img(f):`<i class="t${tier}">${tier?['','壹','贰','叁'][tier]:'卡'}</i>`;
+let boardKey='';
+function drawBoard(){const P=S.prizes.filter(p=>p.prob>0).sort((a,b)=>a.tier-b.tier),key=JSON.stringify([P.map(p=>[p.tier,p.name,p.img]),S.cardImg]);if(key===boardKey)return;boardKey=key;
+  $('board').hidden=!P.length;$('board').innerHTML=`<h3>奖品</h3>`+P.map(p=>`<div class="row"><div class="pic">${pic(p.img,p.tier)}</div><div class="txt"><b class="t${p.tier}">${esc(TIER(p.tier))}</b><span>${esc(p.name)}</span></div></div>`).join('')
+    +`<div class="row"><div class="pic">${pic(S.cardImg,0)}</div><div class="txt"><b class="t0">谢谢惠顾</b><span>猫猫图鉴卡</span></div></div>`}
+// 扭蛋裂开那一刻（stage.js 叫 onReveal）：中了跳出来，没中沉下来
+function reveal(d){const e=$('reveal'),won=d.tier>0,p=won&&S?S.prizes.find(x=>x.id===d.prize):null;
+  e.className='win '+(won?'won':'lost')+(scale<4?' small':'');e.style.borderTop='';
+  e.innerHTML=`${(won?p&&p.img:S&&S.cardImg)?`<div class="pic">${img(won?p.img:S.cardImg)}</div>`:''}<b class="t${d.tier}">${esc(TIER(d.tier))}${won?'！':''}</b><span>${esc(won?d.name:'送你一张猫猫图鉴卡')}</span>`;e.hidden=false}
+function hideReveal(){$('reveal').hidden=true}
+function place(el,r){Object.assign(el.style,{left:r.x/sc.W*100+'%',top:r.y/sc.H*100+'%',width:r.w/sc.W*100+'%',height:r.h/sc.H*100+'%'})}
 
 /* ---------- 舞台（stage.js）：一格像素放大成整数倍，铺满上面那一块 ---------- */
-const sc=Stage.create({onShown:shown}),cv=$('cv'),ctx=cv.getContext('2d');cv.width=sc.W;cv.height=sc.H;
-function fit(){const st=$('stage'),w=st.clientWidth,h=st.clientHeight||innerHeight*.6,s=Math.max(1,Math.floor(Math.min(w/sc.W,h/sc.H)));cv.style.width=sc.W*s+'px';cv.style.height=sc.H*s+'px'}
+const sc=Stage.create({onShown:shown,onReveal:reveal}),cv=$('cv'),ctx=cv.getContext('2d');cv.width=sc.W;cv.height=sc.H;let scale=4;
+place($('board'),Stage.LAYOUT.board);place($('reveal'),Stage.LAYOUT.card);
+function fit(){const st=$('stage'),w=st.clientWidth,h=st.clientHeight||innerHeight*.6,s=scale=Math.max(1,Math.floor(Math.min(w/sc.W,h/sc.H)));cv.style.width=sc.W*s+'px';cv.style.height=sc.H*s+'px';
+  $('reveal').classList.toggle('small',s<4)}
 addEventListener('resize',fit);
 function frame(ms){use(ctx);sc.draw(ms/1000);requestAnimationFrame(frame)}
 
@@ -59,4 +78,4 @@ addEventListener('keydown',e=>{try{Sound.init()}catch(x){}if((e.key===' '||e.key
 setInterval(async()=>{if(busy||cur&&cur.tier>0&&!cur.emp)return;if(await load()&&!cur)idle()},8000);
 
 PXT.ready.then(async()=>{try{if(!Sound.on)Sound.set(true)}catch(e){}paintSnd();fit();requestAnimationFrame(frame);
-  if(!await load())return idle(ERR.net);if(S.pending)return win(S.pending);idle()})})();
+  if(!await load())return idle(ERR.net);if(S.pending){reveal(S.pending);return win(S.pending)}idle()})})();

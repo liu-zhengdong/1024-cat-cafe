@@ -2,19 +2,20 @@
    一个 256×144 的像素舞台：背后深紫墙、两边红幕、右上一块跑马灯招牌、两盏追光；正中一台巨大的猫头扭蛋机（进店那台，EA.machine），
    台下一群猫围着看。转一下：
      旋钮转 → 扭蛋滚出来、蹦到聚光灯里 → 晃一下、停住，屏息，再晃……（宝可梦收服那样）
-     中了：晃满三下，"咔哒"一下冒星星，"叮咚"！白光一闪，扭蛋裂开、奖品卡跳出来，猫群欢呼，两边炮筒喷彩带
+     中了：晃满三下，"咔哒"一下冒星星，"叮咚"！白光一闪，扭蛋裂开、奖品卡（页面叠上来的）跳出来，猫群欢呼，两边炮筒喷彩带
      没中：晃一到三下就裂开，冒一团灰烟，猫群一起叹气
    扭蛋的颜色是随机的，不透露结果；奖品卡和彩带的主色跟着几等奖走：一等奖金、二等奖蓝、三等奖赤陶（和奖品海报一套）。
    抽到什么是服务端定的：spin() 开转，结果回来 result(r)；没回来就一直晃着等。服务端说不行 abort()。
    系统开了"减少动态效果"：结果一回来就直接揭晓，不晃、不放彩带。
    依赖：scene-kit（use 之后的 C、R、P1、OL、alpha、disc、box、txt、spark）、pixel-text（PXT）、cat-sprites（drawEmote）、entry-art（EA）、world-play（COATS、COLLARS）、sound（Sound）。
-   Stage.create({onShown(r)}) → {W, H, draw(t), spin()→true/false, result(r), abort(), ready(on), ph, busy} */
+   Stage.create({onReveal(r), onShown(r)}) → {W, H, draw(t), spin()→true/false, result(r), abort(), ready(on), ph, busy}
+   onReveal：扭蛋裂开那一刻（页面在这时把奖品卡叠到舞台上，见 Stage.LAYOUT）；onShown：再过 .6 秒，可以登记了。
+   Stage.LAYOUT：舞台上留给页面叠东西的地方（舞台坐标）：board 左边墙上的奖品榜，card 揭晓的奖品卡。 */
 const Stage=(()=>{
 const W=256,H=144,FLOOR=86,MX=104,MY=118,RX=184,RY=114;
 const TIER=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||'';
 const TCOL={1:'#e8b83a',2:'#5B9BD5',3:'#d9774f',0:'#9B7EBD'},TLIGHT={1:'#fff0a8',2:'#cfe4f6',3:'#f6c8b0',0:'#d8cce4'};
 const ease=k=>k<0?0:k>1?1:k<.5?2*k*k:1-(-2*k+2)**2/2,cl=k=>k<0?0:k>1?1:k,lerp=(a,b,k)=>a+(b-a)*k,rr=(a,b)=>a+Math.random()*(b-a);
-const back=k=>{const c=1.70158,c3=c+1;k=cl(k);return 1+c3*(k-1)**3+c*(k-1)**2};   // 带一点过冲：奖品卡跳出来
 const sfx=k=>{try{Sound.sfx(k)}catch(e){}};
 const REDUCED=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const BUSY=['turn','roll','hop','shake','still','click','burst'];
@@ -65,7 +66,7 @@ function confetti(A,t,col){const C2=[col,'#fff4dc','#ffd84a','#f4a6b8','#93f5d2'
   for(let i=0;i<70;i++){add(rr(4,16),H-6,rr(25,75),rr(-150,-90));add(rr(W-16,W-4),H-6,rr(-75,-25),rr(-150,-90))}
   for(let i=0;i<50;i++)add(rr(20,W-20),rr(-30,0),rr(-10,10),rr(10,40))}
 
-function create({onShown}={}){
+function create({onShown,onReveal}={}){
 const caps=EA.pile(20,1024),aud=crowd();
 const A={ph:'idle',t:0,t0:0,res:null,cap:null,fx:[],dim:0,shakes:0,need:0,flash:0,popT:-9,mood:'idle',moodT:0};
 const set=(ph,t)=>{A.ph=ph;A.t0=t};
@@ -85,17 +86,6 @@ function drawCrowd(t){const m=A.mood,k=t-A.moodT;
     if(emo)drawEmote(C,x,hy,emo,t);
     if(m==='hold'&&A.ph==='still'&&!c.b&&Math.floor(c.o*10)%2===0)dots(x+4,hy+2,t-A.t0);
     if(m==='sigh'&&kk>0&&kk<2.2&&!c.b)drop(x+6,y-18+Math.round(cl(kk/2.2)*4))})}
-
-// 奖品卡：几等奖（两倍大的像素字）+ 奖品名；谢谢惠顾的卡安静一点
-const big=(()=>{const cache={};return(s,col)=>{const key=s+col;if(cache[key])return cache[key];const w=PXT.w(s)+2,cv=document.createElement('canvas');cv.width=w;cv.height=16;const o=C;use(cv.getContext('2d'));PXT.draw(s,1,0,col,{shadow:OL});use(o);
-  const c2=document.createElement('canvas');c2.width=w*2;c2.height=32;const x=c2.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(cv,0,0,w*2,32);return cache[key]=c2}})();
-function card(t){const r=A.res,won=r.tier>0,k=t-A.popT,q=won?back(k/.45):ease(k/.6);if(k<0)return;
-  const col=TCOL[r.tier],cx=RX,w=112,h=won?52:50,y=Math.round(won?lerp(RY-10,48,q):lerp(40,52,q)),x=cx-w/2,s=won?cl(q):1;
-  alpha(won?1:cl(k/.4),()=>{const ww=Math.max(6,Math.round(w*s)),hh=Math.max(4,Math.round(h*s)),xx=Math.round(cx-ww/2);
-    box(xx-2,y-2,ww+4,hh+4,OL,OL);R(xx-1,y-1,ww+2,hh+2,'#fff4dc');R(xx,y,ww,hh,'#241a2e');R(xx,y,ww,3,col);
-    if(s<.9)return;const T=big(TIER(r.tier),won?col:'#b9a8c9');C.drawImage(T,Math.round(cx-T.width/2),y+6);
-    const n=won?PXT.fit(r.name,w-12):'送你一张图鉴卡';const nw=PXT.w(n);PXT.draw(n,Math.round(cx-nw/2),y+(won?34:32),won?'#fff4dc':'#93f5d2',{shadow:OL})});
-  if(won&&k>.3)for(let i=0;i<4;i++)spark(Math.round(x+4+((i*37+Math.floor(t*2)*13)%(w-8))),y-4+((i*11)%(h+8)),t+i*.4)}
 
 function draw(t){A.t=t;const k=t-A.t0;let turn=0,flap=0,jig=0,jx=0;
   // —— 时间线 ——
@@ -135,7 +125,6 @@ function draw(t){A.t=t;const k=t-A.t0;let turn=0,flap=0,jig=0,jx=0;
   if(A.cap&&['roll','hop','shake','still','click'].includes(A.ph)){EA.capsule(A.cap.x,A.cap.y+(A.cap.hopY||0),A.cap.r,A.cap.a,A.cap.c);
     if(A.ph==='click')for(let i=0;i<5;i++){const a=i*1.26+k*5,r=10+k*12;spark(Math.round(RX+Math.cos(a)*r),Math.round(RY-16+Math.sin(a)*r*.7),t+i*.2)}}
   drawCrowd(t);
-  if(R0&&(A.ph==='burst'||A.ph==='shown'))card(t);
   // 粒子：灰尘、灰烟、彩带
   A.fx=A.fx.filter(f=>{const a=t-f.t0;if(a>f.life)return false;
     if(f.k==='cf'){const x=Math.round(f.x+f.vx*a+Math.sin(a*6+f.ph)*3),y=Math.round(f.y+f.vy*a+70*a*a);if(y>H+2)return false;R(x,y,f.w,Math.floor(a*8+f.ph)%3?1:2,f.c);return true}
@@ -143,7 +132,7 @@ function draw(t){A.t=t;const k=t-A.t0;let turn=0,flap=0,jig=0,jx=0;
     if(f.k==='puff'){const r=Math.round(2+a*6);alpha(cl(1-a/f.life)*.8,()=>disc(x,y,r,r,'#8a7a9a'))}else P1(x,y,'#b9a08a');return true});
   if(A.flash>0){alpha(A.flash,()=>R(0,0,W,H,'#ffffff'));A.flash=Math.max(0,A.flash-.06)}}
 
-function burst(t){const c=A.cap,r=A.res,won=r.tier>0;set('burst',t);A.popT=t;
+function burst(t){const c=A.cap,r=A.res,won=r.tier>0;set('burst',t);A.popT=t;onReveal&&onReveal(r);
   A.top={x:c.x,y:c.y,vx:(Math.random()<.5?-1:1)*40,vy:won?-90:-50,va:(Math.random()<.5?-1:1)*7};A.bot={x:c.x,y:c.y};
   if(won){A.flash=REDUCED?0:.85;sfx('ding');setTimeout(()=>sfx('bell'),180);setTimeout(()=>sfx('fanfare'),420);setMood('cheer',t+.15);if(!REDUCED)confetti(A,t,TCOL[r.tier])}
   else{sfx('boop');for(let i=0;i<14;i++)A.fx.push({k:'puff',x:c.x+rr(-6,6),y:c.y+rr(-6,4),vx:rr(-14,14),vy:rr(-18,-4),t0:t,life:rr(.7,1.2)});setMood('sigh',t+.2)}}
@@ -154,4 +143,4 @@ return{W,H,draw,TIER,get ph(){return A.ph},get busy(){return BUSY.includes(A.ph)
   result(r){A.res=r;if(REDUCED){if(!A.cap)A.cap={x:RX,y:RY-16,r:16,a:0,c:2};A.cap.x=RX;A.cap.y=RY-16;A.cap.r=16;burst(A.t);A.ph='shown';onShown&&onShown(r)}},
   abort(){A.ph='idle';A.cap=null;A.res=null;setMood('idle',A.t)},
   ready(on){if(!BUSY.includes(A.ph)){A.ph=on?'ready':'idle';if(A.mood!=='idle'&&A.t-A.moodT>2.5)setMood('idle',A.t)}}}}
-return{create,TIER,W,H}})();
+return{create,TIER,W,H,LAYOUT:{board:{x:25,y:14,w:52,h:70},card:{x:RX-60,y:40,w:120,h:68}}}})();

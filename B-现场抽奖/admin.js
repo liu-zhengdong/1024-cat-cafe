@@ -15,19 +15,31 @@ async function load(){const r=await api('GET','state');if(r.err){$('live').textC
   const won=D.filter(d=>d.tier>0&&!d.void).length;
   $('stats').innerHTML=`<span><b>${esc(r.total)}</b>次</span><span><b>${esc(won)}</b>中奖</span><span><b>${esc(r.cards)}</b>张图鉴卡发出去了</span>${r.pending?`<span style="color:var(--bad)">第 ${esc(r.pending.no)} 次中了${esc(TIER(r.pending.tier))}，还没登记工号</span>`:''}`;
   $('openTag').textContent=r.open?'抽奖开着':'暂停中';$('openTag').className='tag '+(r.open?'on':'off');$('openBtn').textContent=r.open?'暂停':'继续';
-  if(document.activeElement!==$('note'))$('note').value=r.note||'';drawPrizes()}
+  if(document.activeElement!==$('note'))$('note').value=r.note||'';drawCardImg();drawPrizes()}
 const setting=async(body,el,ok)=>{const r=await api('POST','settings',body);if(r.err)return say(el,ERR[r.err]||'没保存上',1);say(el,ok);load()};
 $('openBtn').onclick=()=>{const on=!S.open;if(!on&&!confirm('暂停抽奖？抽奖页上"抽一次"会点不了。'))return;setting({open:on},$('openMsg'),on?'继续了':'暂停了')};
 $('noteBtn').onclick=()=>setting({note:$('note').value},$('noteMsg'),'保存了');
 
+/* ---------- 图片：先在浏览器里缩到最长边 640，转成 webp（不认 webp 的转 png）再传；奖品一张、图鉴卡一张 ---------- */
+async function shrink(file){const url=URL.createObjectURL(file);try{const img=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=url});
+  const k=Math.min(1,640/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*k));c.height=Math.max(1,Math.round(img.height*k));
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);const d=c.toDataURL('image/webp',.9);return d.startsWith('data:image/webp')?d:c.toDataURL('image/png')}finally{URL.revokeObjectURL(url)}}
+function pickImage(id,el){const f=$('file');f.value='';f.onchange=async()=>{const file=f.files[0];if(!file)return;let data;try{data=await shrink(file)}catch(e){return say(el,'这张图打不开',1)}
+  say(el,'在传……');const r=await api('POST','image',{id,data});if(r.err)return say(el,r.err==='bad'?'只收 png、jpg、webp，压缩后不超过 2.5MB':ERR[r.err]||'没传上',1);say(el,'换好了');load()};f.click()}
+const thumb=f=>f?`<img class="thumb" src="img/${esc(f)}" alt="">`:'<span class="thumb none">—</span>';
+function drawCardImg(){$('cardImg').innerHTML=`<span style="display:inline-flex;gap:8px;align-items:center">${thumb(S.cardImg)}<button class="lbtn" id="cardUp">${S.cardImg?'换图':'上传'}</button>${S.cardImg?'<button class="lbtn" id="cardDel">删图</button>':''}</span>`;
+  $('cardUp').onclick=()=>pickImage('card',$('cardMsg'));if($('cardDel'))$('cardDel').onclick=async()=>{await api('POST','image/del',{id:'card'});load()}}
+
 /* ---------- 奖品 ---------- */
 const pct=v=>`${+v.toFixed(2)}%`;
 function drawPrizes(){const P=S.prizes.slice().sort((a,b)=>a.tier-b.tier);
-  $('prizes').innerHTML=P.map(p=>`<tr><td>${esc(TIER(p.tier))}</td><td>${esc(p.name)}</td><td class="n">${esc(pct(p.prob))}</td><td class="n">${p.stock===null?'不限':esc(p.stock)}</td>
+  $('prizes').innerHTML=P.map(p=>`<tr><td class="im">${thumb(p.img)}</td><td>${esc(TIER(p.tier))}</td><td>${esc(p.name)}</td><td class="n">${esc(pct(p.prob))}</td><td class="n">${p.stock===null?'不限':esc(p.stock)}</td>
     <td class="n">${esc(p.given)}</td><td class="n">${p.rest===null?'—':p.rest===0?'<span style="color:var(--bad)">发完了</span>':esc(p.rest)}</td>
-    <td><div class="acts">${p.stock===null?'':`<button class="lbtn" data-re="${esc(p.id)}">补货</button>`}<button class="lbtn" data-ed="${esc(p.id)}">改</button>${p.given?'':`<button class="lbtn" data-del="${esc(p.id)}">删</button>`}</div></td></tr>`).join('')
-    +`<tr><td>谢谢惠顾</td><td>猫猫图鉴卡</td><td class="n">${esc(pct(S.lose))}</td><td class="n" colspan="3" style="text-align:left;color:var(--dim)">剩下的概率${S.prizes.some(p=>p.rest===0)?'，含已经发完的那几档':''}</td><td></td></tr>`;
+    <td><div class="acts"><button class="lbtn" data-img="${esc(p.id)}">${p.img?'换图':'上传图片'}</button>${p.img?`<button class="lbtn" data-imgdel="${esc(p.id)}">删图</button>`:''}${p.stock===null?'':`<button class="lbtn" data-re="${esc(p.id)}">补货</button>`}<button class="lbtn" data-ed="${esc(p.id)}">改</button>${p.given?'':`<button class="lbtn" data-del="${esc(p.id)}">删</button>`}</div></td></tr>`).join('')
+    +`<tr><td class="im">${thumb(S.cardImg)}</td><td>谢谢惠顾</td><td>猫猫图鉴卡</td><td class="n">${esc(pct(S.lose))}</td><td class="n" colspan="3" style="text-align:left;color:var(--dim)">剩下的概率${S.prizes.some(p=>p.rest===0)?'，含已经发完的那几档':''}</td><td></td></tr>`;
   const find=id=>S.prizes.find(p=>p.id===id);
+  $('prizes').querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>pickImage(b.dataset.img,$('pMsg')));
+  $('prizes').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=async()=>{if(!confirm('删掉这张图？'))return;await api('POST','image/del',{id:b.dataset.imgdel});load()});
   $('prizes').querySelectorAll('[data-re]').forEach(b=>b.onclick=async()=>{const p=find(b.dataset.re),n=Math.floor(+prompt(`给「${p.name}」补几份？（现在还剩 ${p.rest} 份）`,'1'));if(!(n>=1))return;
     const r=await api('POST','restock',{id:p.id,n});if(r.err)alert(ERR[r.err]);load()});
   $('prizes').querySelectorAll('[data-ed]').forEach(b=>b.onclick=async()=>{const p=find(b.dataset.ed);const name=prompt('名称',p.name);if(name===null)return;const w=prompt('概率，百分数（0 就是停掉这一档）',p.prob);if(w===null)return;
