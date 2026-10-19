@@ -4,7 +4,7 @@
    opts：[文字, 对不对, 为什么]；tip 指向 TIPS，link 指向 LINKS。能力的说法都以仓库 README / docs/TIPS.md / docs/features 为准。 */
 const LINKS={
   inner:{n:'内源主页',url:'',sub:'内网内源平台上的项目主页：点关注、看介绍、提需求'},
-  site:{n:'官网',url:'https://zts212653.github.io/clowder-ai/',sub:'完整文档、架构指南、社区'},
+  site:{n:'官网',url:'http://clowder.ai.huawei.com/',sub:'完整文档、架构指南、社区'},
   docs:{n:'文档',url:'https://zts212653.github.io/clowder-ai/docs.html',sub:'安装、命令、环境变量'},
   github:{n:'GitHub',url:'https://github.com/zts212653/clowder-ai',sub:'开源仓库（MIT），点个 Star'},
   issues:{n:'提个 issue',url:'https://github.com/zts212653/clowder-ai/issues',sub:'反馈问题、提需求'},

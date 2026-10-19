@@ -7,6 +7,7 @@
 .DS_Store
 # 部署配置（内网地址写在这里）和服务端数据不进仓库
 /A-像素猫咖/config.js
+/A-像素猫咖/proxy.js
 /A-像素猫咖/server/data/
 # deploy.sh 在本机生成的：设置、nginx 那一段、运行时（进程号、日志）、备份（含抽奖登记）、离线包、带进来的 Node
 /A-像素猫咖/deploy.env
