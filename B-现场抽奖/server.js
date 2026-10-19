@@ -45,7 +45,7 @@ const API={
   'GET export':({url})=>exportCsv(url.searchParams.get('what'))};
 
 /* ---------- 网页：这个目录里的，加上借猫咖的几个 ---------- */
-const OWN=['index.html','admin.html','style.css','desk.js','admin.js','scene.js'];
+const OWN=['index.html','admin.html','style.css','desk.js','admin.js','stage.js'];
 const BORROW=['js/cat-sprites.js','js/pixel-text.js','js/scene-kit.js','js/world-kit.js','js/world4-kit.js','js/world-play.js','js/sound.js','js/entry-art.js','fonts/fusion-pixel-12.woff2'];
 const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.woff2':'font/woff2'};
 function serveFile(res,p){const rel=p==='/'?'index.html':p.slice(1),f=OWN.includes(rel)?path.join(HERE,rel):BORROW.includes(rel)?path.join(CAT,rel):null;

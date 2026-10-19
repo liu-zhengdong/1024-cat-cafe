@@ -7,39 +7,28 @@
 <link rel="preload" href="fonts/fusion-pixel-12.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 <style>
-  /* 抽奖页：工作人员确认条件以后点"抽一次"，中了当场登记工号，谢谢惠顾发一张图鉴卡。设计见 README.md */
-  #page{display:grid;grid-template-rows:auto 1fr auto;height:100%}
-  header{display:flex;align-items:center;gap:24px;padding:16px 32px;font-size:12px;line-height:18px;color:var(--sub)}
-  header b{font-size:24px;line-height:36px;color:var(--ink);font-weight:400}header .sp{flex:1}header a{color:var(--sub)}
-  main{display:grid;grid-template-columns:minmax(0,3fr) minmax(400px,2fr);gap:48px;align-items:center;padding:0 48px;min-height:0}
-  #stage{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0;height:100%;overflow:hidden}
-  #panel{padding:32px 36px;margin:16px}
-  #panel h2{margin:0 0 16px;font-size:24px;line-height:36px;font-weight:400}
-  #panel p{margin:0 0 16px;color:var(--sub);font-size:12px;line-height:18px}
-  #panel .big{font-size:48px;line-height:60px;color:var(--acc);margin:0 0 8px}
-  #panel .tier{font-size:48px;line-height:60px;margin:0;color:var(--acc)}#panel .tier.no{color:var(--sub)}
-  #panel .prize{font-size:24px;line-height:36px;margin:8px 0 20px;color:var(--ink)}
-  #panel .card{font-size:24px;line-height:36px;color:var(--ok);margin:12px 0 4px}
-  #panel .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:24px}
-  #panel form{display:flex;gap:16px;align-items:center}#panel input{flex:1;min-width:0}
-  #panel .err{color:var(--bad);font-size:12px;line-height:18px;min-height:18px;margin:12px 0 0}
-  #panel .warn{color:var(--bad);font-size:12px;line-height:18px;margin:12px 0}
-  #panel .stock{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:28px;padding-top:20px;box-shadow:0 calc(var(--u)*-1) 0 var(--line);font-size:12px;line-height:18px;color:var(--sub)}
-  #panel .stock b{color:var(--ink);font-weight:400}#panel .stock .out b{color:var(--bad)}
-  #panel .note{color:var(--ink)}
-  footer{padding:12px 32px 20px;font-size:12px;line-height:18px;color:var(--dim);display:flex;gap:24px;flex-wrap:wrap}
-  footer b{color:var(--sub);font-weight:400}
-  @media (max-width:900px){main{grid-template-columns:1fr;padding:0 16px;gap:0}#stage{height:auto;padding:16px 0}#panel{margin:16px 8px;padding:24px 20px}#panel form{flex-wrap:wrap}header{flex-wrap:wrap;gap:8px 16px;padding:16px}footer{padding:12px 16px 20px}html,body{overflow:auto}}
+  /* 抽奖页：上面整块是舞台（stage.js，给围观的人看），下面一条是工作人员的操作条。设计见 README.md */
+  body{background:#0b0710}
+  #page{display:grid;grid-template-rows:1fr auto;height:100%}
+  #stage{display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden;background:#140e1a}
+  #bar{display:flex;align-items:center;gap:24px;padding:14px 28px 18px;background:var(--pan);box-shadow:0 calc(var(--u)*-1) 0 #fff4dc,0 calc(var(--u)*-2) 0 var(--dk);min-height:96px}
+  #bar .say{flex:1;min-width:0}
+  #bar .say b{display:block;font-weight:400;font-size:24px;line-height:36px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bar .say>span{display:block;font-size:12px;line-height:18px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bar .say .warn{color:var(--bad)}#bar .say .ok{color:var(--ok)}
+  #bar .ctl{display:flex;align-items:center;gap:12px;flex:none}
+  #bar form{display:flex;gap:12px;align-items:center}#bar input{width:220px}
+  #bar .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;font-size:12px;line-height:18px;color:var(--dim)}
+  #bar .meta a{color:var(--sub)}
+  .t1{color:#e8b83a}.t2{color:#7ab4e6}.t3{color:#e8946e}.t0{color:var(--sub)}
+  @media (max-width:900px){#bar{flex-wrap:wrap;padding:12px 16px 16px;gap:12px}#bar .ctl{flex-wrap:wrap}#bar input{width:100%}#bar form{flex:1}html,body{overflow:auto}#page{height:auto}}
 </style>
 </head>
 <body>
 <div id="page">
-  <header><b>1024 现场抽奖</b><span id="count"></span><span class="sp"></span><a href="admin.html" target="_blank" rel="noopener">设置</a></header>
-  <main>
-    <div id="stage"><canvas id="cv"></canvas></div>
-    <section class="win" id="panel"></section>
-  </main>
-  <footer><span><b>Clowder AI</b> · 把孤立的 AI agent 变成真正的团队</span><span>官网 zts212653.github.io/clowder-ai</span><span>GitHub zts212653/clowder-ai · 点个 Star</span><span>回到工位用内网打开 1024 猫咖，店里还有毛线球和彩蛋</span></footer>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <section id="bar"><div class="say" id="say"></div><div class="ctl" id="ctl"></div>
+    <div class="meta"><span id="count"></span><span><button class="lbtn sm" id="snd">声音 开</button> <a href="admin.html" target="_blank" rel="noopener">设置</a></span></div></section>
 </div>
 <script src="js/cat-sprites.js"></script>
 <script src="js/pixel-text.js"></script>
@@ -49,7 +38,7 @@
 <script src="js/world-play.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/entry-art.js"></script>
-<script src="scene.js"></script>
+<script src="stage.js"></script>
 <script src="desk.js"></script>
 </body>
 </html>
