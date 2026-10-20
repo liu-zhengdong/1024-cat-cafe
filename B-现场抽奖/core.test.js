@@ -61,3 +61,8 @@ test('抽很多次，各档出现的比例接近设定的概率',()=>{const s=C.
   const n={0:0,1:0,2:0};let x=12345;const rnd=()=>(x=(x*16807)%2147483647)/2147483647;
   for(let i=0;i<100000;i++){const d=C.draw(s,T0,rnd).draw;n[d.tier]++;if(d.tier>0)C.claim(s,d.no,'W'+i,true,T0)}
   assert.ok(Math.abs(n[1]/1e5-.01)<.002,String(n[1]));assert.ok(Math.abs(n[2]/1e5-.09)<.005,String(n[2]));assert.ok(Math.abs(n[0]/1e5-.90)<.005,String(n[0]))});
+
+test('同一个编号再来一次：还是那一次，不多抽；中了没登记也照样还回来',()=>{const s=setup();
+  const a=C.draw(s,T0,()=>0,'req0001a').draw;const b=C.draw(s,T0,()=>.9,'req0001a');assert.equal(b.again,true);assert.equal(b.draw,a);assert.equal(s.draws.length,1);assert.equal(s.prizes[0].given,1);
+  assert.deepEqual(C.draw(s,T0,()=>.9,'req0002b'),{err:'pending',no:1});ok(s,1);assert.equal(C.draw(s,T0,()=>.9,'req0002b').draw.no,2);
+  assert.equal(C.draw(s,T0,()=>.9,'BAD id!').draw.req,undefined)});

@@ -37,6 +37,15 @@ function setImage(body){const key=body.id==='card'?'card':typeof body.id==='stri
 function delImage(body){const x=body.id==='card'?null:st.prizes.find(p=>p.id===body.id);if(body.id!=='card'&&!x)return[404,{err:'none'}];
   const old=body.id==='card'?st.cardImg:x.img;const r=commit(()=>{if(body.id==='card')st.cardImg=null;else x.img=null;return{ok:true}});if(r[0]===200)rmImg(old);return r}
 
+/* ---------- 抽奖台：同一时间只有一台能抽、能登记、能作废，别的抽奖页打开是观看 ----------
+   抽奖页每个标签页有自己的编号（X-Desk 头）。没有抽奖台时，第一个打开的就是；观看页上点"在这台抽"换过来。
+   只记在内存里：服务重启以后谁先打开谁是。设置页的请求不带 X-Desk，不受限制。 */
+let desk=null;
+const who=req=>{const v=req.headers['x-desk'];return typeof v==='string'&&/^[a-z0-9]{8,40}$/.test(v)?v:null};
+function deskInfo(me){if(me&&desk&&desk.id===me)desk.at=Date.now();return{me:!!(me&&desk&&desk.id===me),has:!!desk,ago:desk?Math.round((Date.now()-desk.at)/1000):null}}
+// 抽奖页来的（带 X-Desk）只认抽奖台；这时还没有抽奖台（服务刚重启），它就是
+const notDesk=me=>{if(!me)return null;if(!desk)desk={id:me,at:Date.now()};return desk.id===me?null:[409,{err:'desk'}]};
+
 /* ---------- 接口 ---------- */
 const pubPrize=p=>({...p,rest:C.rest(p)});
 const state=()=>({open:st.open,note:st.note,cardImg:st.cardImg||null,cards:C.cards(st),lose:C.loseProb(st),allOut:st.prizes.length>0&&st.prizes.every(C.out),prizes:st.prizes.map(pubPrize),pending:C.winOf(st),
@@ -49,10 +58,11 @@ const csv=rows=>'﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n')+'\r\n';
 function exportCsv(what){if(what==='all')return{csv:csv([['第几次','时间','结果','奖品','工号','登记时间','图鉴卡','作废'],...st.draws.map(d=>[d.no,fmt(d.t),TIER_N(d.tier),d.name,d.emp||'',fmt(d.et),d.card?'发了':'',d.void?'作废':''])]),name:'现场抽奖-全部记录.csv'};
   const L=st.draws.filter(d=>d.tier>0&&!d.void);return{csv:csv([['工号','几等奖','奖品','抽奖时间','第几次'],...L.map(d=>[d.emp||'（没登记）',TIER_N(d.tier),d.name,fmt(d.t),d.no])]),name:'现场抽奖-中奖名单.csv'}}
 const API={
-  'GET state':()=>[200,state()],
-  'POST draw':()=>{const r=commit(()=>C.draw(st,Date.now(),rnd));if(r[0]===200&&st.draws.length%20===0)try{backup('auto')}catch(e){console.error('备份没存上',e)}return r},
-  'POST claim':({body})=>commit(()=>C.claim(st,body.no,body.emp,body.force===true,Date.now())),
-  'POST void':({body})=>commit(()=>C.voidDraw(st,body.no)),
+  'GET state':({me})=>[200,{...state(),desk:deskInfo(me)}],
+  'POST desk':({me})=>{if(!me)return[400,{err:'bad'}];desk={id:me,at:Date.now()};return[200,{desk:deskInfo(me)}]},
+  'POST draw':({body,me})=>notDesk(me)||(()=>{const r=commit(()=>C.draw(st,Date.now(),rnd,body.req));if(r[0]===200&&!r[1].again&&st.draws.length%20===0)try{backup('auto')}catch(e){console.error('备份没存上',e)}return r})(),
+  'POST claim':({body,me})=>notDesk(me)||commit(()=>C.claim(st,body.no,body.emp,body.force===true,Date.now())),
+  'POST void':({body,me})=>notDesk(me)||commit(()=>C.voidDraw(st,body.no)),
   'GET draws':()=>[200,{draws:st.draws.slice().reverse()}],
   'POST prize':({body})=>commit(()=>C.setPrize(st,body,id())),
   'POST prize/del':({body})=>{const r=commit(()=>C.delPrize(st,body.id));if(r[0]===200)rmImg(r[1].prize.img);return r},
@@ -82,6 +92,7 @@ const server=http.createServer((req,res)=>{const u=new URL(req.url,'http://x');i
   // 传图片的那个接口放宽到 4MB，别的 16KB
   const MAX=u.pathname==='/api/image'?4e6:16384;let raw='',big=false;req.on('data',d=>{raw+=d;if(raw.length>MAX){big=true;req.destroy()}});
   req.on('end',()=>{if(big)return;let body={};if(raw){try{body=JSON.parse(raw)}catch(e){return reply(res,[400,{err:'bad'}])}}if(!body||typeof body!=='object'||Array.isArray(body))body={};
-    let out;try{out=h({body,url:u})}catch(e){console.error(e);out=[500,{err:'server'}]}reply(res,out)})});
+    let out;try{out=h({body,url:u,me:who(req)})}catch(e){console.error(e);out=[500,{err:'server'}]}reply(res,out)})});
 server.listen(PORT,HOST,()=>{const base=`http://${HOST==='0.0.0.0'?'127.0.0.1':HOST}:${PORT}`;
-  console.log(`1024 现场抽奖：${base}/\n设置：${base}/admin.html\n数据：${FILE}`);if(!fs.existsSync(path.join(CAT,'js','entry-art.js')))console.error(`找不到 ${CAT}：要和猫咖放在同一个仓库目录里（扭蛋机、像素字是借它的）`)});
+  console.log(`1024 现场抽奖：${base}/\n设置：${base}/admin.html\n数据：${FILE}`);
+  if(process.platform==='win32')console.log('别在这个窗口里点鼠标：点了会卡住、抽奖页连不上；万一点了，按一下 Esc 就好。关掉这个窗口，抽奖就停了。');if(!fs.existsSync(path.join(CAT,'js','entry-art.js')))console.error(`找不到 ${CAT}：要和猫咖放在同一个仓库目录里（扭蛋机、像素字是借它的）`)});

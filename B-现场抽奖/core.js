@@ -2,7 +2,7 @@
    某一档发完了，它那份概率直接算谢谢惠顾（不匀给别的奖）。谢谢惠顾发一张猫猫图鉴卡（卡很多，不记库存，只数发了几张）。
    中奖登记工号、同工号提醒、作废放回。
    只改传进来的 state，不读写文件；时间 now、随机数 rnd（返回 [0,1)）从外面传。回了 {err} 的，state 一点没动。
-   state = {open, note, prizes:[{id, tier, name, prob 百分数, stock, given}], draws:[{no, t, prize, tier, name, card, emp, et, void}]} */
+   state = {open, note, prizes:[{id, tier, name, prob 百分数, stock, given}], draws:[{no, t, prize, tier, name, card, emp, et, void, req}]} */
 const TIERS=[1,2,3];
 const LOSE='谢谢惠顾';
 const int=v=>Number.isInteger(v);
@@ -47,9 +47,12 @@ function settings(s,o){const n={};if('open' in o){if(typeof o.open!=='boolean')r
 /* ---------- 抽 ---------- */
 // 在 0～100 上掷一个数：落进哪一档的那一段就是哪一档；那一档发完了，或者落在各档之外，都是谢谢惠顾
 function pick(s,rnd){const r=rnd()*100;let c=0;for(const p of order(s)){c+=p.prob;if(r<c)return out(p)?null:p}return null}
-function draw(s,now,rnd){if(!s.open)return{err:'closed'};const w=winOf(s);if(w)return{err:'pending',no:w.no};
+// req：抽奖页给这一次起的编号。回复在路上丢了、抽奖页拿同一个编号再来，就把那一次原样还给它（again），不再抽一次
+const reqOk=r=>typeof r==='string'&&/^[a-z0-9]{8,40}$/.test(r);
+function draw(s,now,rnd,req){if(reqOk(req)){const d=s.draws.find(x=>x.req===req);if(d)return{draw:d,again:true}}
+  if(!s.open)return{err:'closed'};const w=winOf(s);if(w)return{err:'pending',no:w.no};
   const p=pick(s,rnd);if(p)p.given++;
-  const d={no:s.draws.length+1,t:now,prize:p?p.id:null,tier:p?p.tier:0,name:p?p.name:LOSE,card:!p,emp:null,et:null,void:false};s.draws.push(d);return{draw:d}}
+  const d={no:s.draws.length+1,t:now,prize:p?p.id:null,tier:p?p.tier:0,name:p?p.name:LOSE,card:!p,emp:null,et:null,void:false};if(reqOk(req))d.req=req;s.draws.push(d);return{draw:d}}
 
 /* ---------- 中奖登记、作废 ---------- */
 // 同一个工号之前中过（没作废的），不带 force 就回 dup 和之前那几次，让工作人员决定；登记过的再登记一次就是改
