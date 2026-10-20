@@ -64,12 +64,14 @@ const API={
   'GET export':({url})=>exportCsv(url.searchParams.get('what'))};
 
 /* ---------- 网页：这个目录里的，加上借猫咖的几个 ---------- */
-const OWN=['index.html','admin.html','style.css','desk.js','admin.js','stage.js'];
+const OWN=['index.html','admin.html','style.css','desk.js','admin.js','stage.js','sfx.js'];
+// 现场音效的录音（sfx.js 去拿）：snd/ 下的 mp3
+const SND=/^snd\/[a-z0-9]+\.mp3$/;
 const BORROW=['js/cat-sprites.js','js/pixel-text.js','js/scene-kit.js','js/world-kit.js','js/world4-kit.js','js/world-play.js','js/sound.js','js/entry-art.js','fonts/fusion-pixel-12.woff2'];
-const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.woff2':'font/woff2'};
+const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.woff2':'font/woff2','.mp3':'audio/mpeg'};
 function serveFile(res,p){if(p.startsWith('/img/')){const f=p.slice(5);if(!IMG_NAME.test(f)){res.writeHead(404);return res.end('not found')}
     return fs.readFile(path.join(IMG,f),(e,b)=>{if(e){res.writeHead(404);return res.end('not found')}res.writeHead(200,{'Content-Type':{'.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'}[path.extname(f)],'Cache-Control':'max-age=86400','X-Content-Type-Options':'nosniff'});res.end(b)})}
-  const rel=p==='/'?'index.html':p.slice(1),f=OWN.includes(rel)?path.join(HERE,rel):BORROW.includes(rel)?path.join(CAT,rel):null;
+  const rel=p==='/'?'index.html':p.slice(1),f=OWN.includes(rel)||SND.test(rel)?path.join(HERE,rel):BORROW.includes(rel)?path.join(CAT,rel):null;
   if(!f){res.writeHead(404);return res.end('not found')}
   fs.readFile(f,(e,b)=>{if(e){res.writeHead(404);return res.end('not found')}res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'});res.end(b)})}
 

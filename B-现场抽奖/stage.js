@@ -7,7 +7,7 @@
    扭蛋的颜色是随机的，不透露结果；奖品卡和彩带的主色跟着几等奖走：一等奖金、二等奖蓝、三等奖赤陶（和奖品海报一套）。
    抽到什么是服务端定的：spin() 开转，结果回来 result(r)；没回来就一直晃着等。服务端说不行 abort()。
    系统开了"减少动态效果"：结果一回来就直接揭晓，不晃、不放彩带。
-   依赖：scene-kit（use 之后的 C、R、P1、OL、alpha、disc、box、txt、spark）、pixel-text（PXT）、cat-sprites（drawEmote）、entry-art（EA）、world-play（COATS、COLLARS）、sound（Sound）。
+   依赖：scene-kit（use 之后的 C、R、P1、OL、alpha、disc、box、txt、spark）、pixel-text（PXT）、cat-sprites（drawEmote）、entry-art（EA）、world-play（COATS、COLLARS）、sfx（Sfx，现场音效）。
    Stage.create({onReveal(r), onShown(r)}) → {W, H, draw(t), spin()→true/false, result(r), abort(), ready(on), ph, busy}
    onReveal：扭蛋裂开那一刻（页面在这时把奖品卡叠到舞台上，见 Stage.LAYOUT）；onShown：再过 .6 秒，可以登记了。
    Stage.LAYOUT：舞台上留给页面叠东西的地方（舞台坐标）：board 左边墙上的奖品榜，card 揭晓的奖品卡。 */
@@ -16,7 +16,7 @@ const W=256,H=144,FLOOR=86,MX=104,MY=118,RX=184,RY=114;
 const TIER=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||'';
 const TCOL={1:'#e8b83a',2:'#5B9BD5',3:'#d9774f',0:'#9B7EBD'},TLIGHT={1:'#fff0a8',2:'#cfe4f6',3:'#f6c8b0',0:'#d8cce4'};
 const ease=k=>k<0?0:k>1?1:k<.5?2*k*k:1-(-2*k+2)**2/2,cl=k=>k<0?0:k>1?1:k,lerp=(a,b,k)=>a+(b-a)*k,rr=(a,b)=>a+Math.random()*(b-a);
-const sfx=k=>{try{Sound.sfx(k)}catch(e){}};
+const sfx=k=>{try{Sfx.ev(k)}catch(e){}};
 const REDUCED=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 const BUSY=['turn','roll','hop','shake','still','click','burst'];
 
@@ -90,19 +90,19 @@ function drawCrowd(t){const m=A.mood,k=t-A.moodT;
 function draw(t){A.t=t;const k=t-A.t0;let turn=0,flap=0,jig=0,jx=0;
   // —— 时间线 ——
   const R0=A.res;
-  if(A.ph==='turn'){turn=ease(cl(k/.9));jig=k<.9?Math.sin(cl(k/.9)*Math.PI)+.3:0;jx=k<.9?Math.round(Math.sin(k*40)*.8):0;if(k<.9&&Math.floor(k*4)!==A.rat){A.rat=Math.floor(k*4);sfx('ratchet')}
+  if(A.ph==='turn'){turn=ease(cl(k/.9));jig=k<.9?Math.sin(cl(k/.9)*Math.PI)+.3:0;jx=k<.9?Math.round(Math.sin(k*40)*.8):0;if(k<.9&&Math.floor(k*4)!==A.rat){A.rat=Math.floor(k*4);sfx('crank')}
     if(k>.9&&!A.cap){const i=caps.reduce((b,c,j)=>c.y>caps[b].y?j:b,0);caps.splice(i,1);caps.push(...EA.pile(1,Math.floor(t*1000)%9973+1));A.cap={x:MX,y:MY-8,r:5,a:0,c:Math.floor(Math.random()*6)};sfx('toss')}
     flap=k<.9?0:k<1.1?(k-.9)/.2:1;if(k>1.1){set('roll',t);sfx('roll')}}
   else if(A.ph==='roll'){flap=Math.max(0,1-k/.3);const q=cl(k/.6);A.cap.x=MX+2+q*28;A.cap.y=q<.3?lerp(MY-8,MY+3,q/.3):MY+3-Math.abs(Math.sin((q-.3)/.7*Math.PI*2))*3*(1-q);A.cap.a=q*6;
     if(k>.6){A.hop={x:A.cap.x,y:A.cap.y};set('hop',t)}}
   else if(A.ph==='hop'){const q=ease(cl(k/.7));A.cap.x=lerp(A.hop.x,RX,q);A.cap.y=lerp(A.hop.y,RY-16,q)-Math.sin(cl(k/.7)*Math.PI)*30;A.cap.r=Math.round(lerp(5,16,q));A.cap.a*=1-q;
-    if(k>.7){set('still',t);A.cap.a=0;sfx('land');for(let i=0;i<10;i++)A.fx.push({k:'dust',x:RX+rr(-10,10),y:RY,vx:rr(-30,30),vy:rr(-20,-5),t0:t,life:.5});A.shakes=0;setMood('hold',t)}}
+    if(k>.7){set('still',t);A.cap.a=0;sfx('land');try{Sfx.drum()}catch(e){}for(let i=0;i<10;i++)A.fx.push({k:'dust',x:RX+rr(-10,10),y:RY,vx:rr(-30,30),vy:rr(-20,-5),t0:t,life:.5});A.shakes=0;setMood('hold',t)}}
   // 晃一下（.5 秒）、停住屏息（.7 秒）……中了晃满三下再"咔哒"；没中晃到 need 下就裂开。结果没回来就一直晃
   else if(A.ph==='shake'){const q=cl(k/.5);A.cap.a=Math.sin(q*Math.PI*2)*.4*(1-q*.3);A.cap.hopY=-Math.round(Math.sin(q*Math.PI)*2);
     if(k>.5){A.cap.a=0;A.cap.hopY=0;A.shakes++;set('still',t)}}
   else if(A.ph==='still'){const pause=A.shakes===0?.35:.7;
     if(k>pause){if(R0&&!A.need)A.need=R0.tier>0?3:1+Math.floor(Math.random()*3);
-      if(A.need&&A.shakes>=A.need){if(R0.tier>0){set('click',t);sfx('twinkle')}else burst(t)}else{set('shake',t);sfx('clack')}}}
+      if(A.need&&A.shakes>=A.need){if(R0.tier>0){set('click',t);sfx('lock')}else burst(t)}else{set('shake',t);sfx('wob')}}}
   else if(A.ph==='click'){if(k>.55)burst(t)}
   else if(A.ph==='burst'&&k>.6){set('shown',t);onShown&&onShown(R0)}
   // —— 灯光：平时两盏追光来回扫；转的时候打在扭蛋机上；屏息时打在扭蛋上、四周暗下来；中了乱扫 ——
@@ -134,13 +134,13 @@ function draw(t){A.t=t;const k=t-A.t0;let turn=0,flap=0,jig=0,jx=0;
 
 function burst(t){const c=A.cap,r=A.res,won=r.tier>0;set('burst',t);A.popT=t;onReveal&&onReveal(r);
   A.top={x:c.x,y:c.y,vx:(Math.random()<.5?-1:1)*40,vy:won?-90:-50,va:(Math.random()<.5?-1:1)*7};A.bot={x:c.x,y:c.y};
-  if(won){A.flash=REDUCED?0:.85;sfx('ding');setTimeout(()=>sfx('bell'),180);setTimeout(()=>sfx('fanfare'),420);setMood('cheer',t+.15);if(!REDUCED)confetti(A,t,TCOL[r.tier])}
-  else{sfx('boop');for(let i=0;i<14;i++)A.fx.push({k:'puff',x:c.x+rr(-6,6),y:c.y+rr(-6,4),vx:rr(-14,14),vy:rr(-18,-4),t0:t,life:rr(.7,1.2)});setMood('sigh',t+.2)}}
+  if(won){A.flash=REDUCED?0:.85;try{Sfx.win(r.tier)}catch(e){}setMood('cheer',t+.15);if(!REDUCED)confetti(A,t,TCOL[r.tier])}
+  else{try{Sfx.lose()}catch(e){}for(let i=0;i<14;i++)A.fx.push({k:'puff',x:c.x+rr(-6,6),y:c.y+rr(-6,4),vx:rr(-14,14),vy:rr(-18,-4),t0:t,life:rr(.7,1.2)});setMood('sigh',t+.2)}}
 
 return{W,H,draw,TIER,get ph(){return A.ph},get busy(){return BUSY.includes(A.ph)},
-  spin(){if(BUSY.includes(A.ph))return false;Object.assign(A,{res:null,cap:null,top:null,bot:null,need:0,shakes:0,rat:-1});A.fx=A.fx.filter(f=>f.k==='cf');set('turn',A.t);setMood('watch',A.t);sfx('ratchet');return true},
+  spin(){if(BUSY.includes(A.ph))return false;Object.assign(A,{res:null,cap:null,top:null,bot:null,need:0,shakes:0,rat:-1});A.fx=A.fx.filter(f=>f.k==='cf');set('turn',A.t);setMood('watch',A.t);sfx('crank');return true},
   // 结果回来：减少动态效果时直接揭晓
   result(r){A.res=r;if(REDUCED){if(!A.cap)A.cap={x:RX,y:RY-16,r:16,a:0,c:2};A.cap.x=RX;A.cap.y=RY-16;A.cap.r=16;burst(A.t);A.ph='shown';onShown&&onShown(r)}},
-  abort(){A.ph='idle';A.cap=null;A.res=null;setMood('idle',A.t)},
+  abort(){try{Sfx.stop()}catch(e){}A.ph='idle';A.cap=null;A.res=null;setMood('idle',A.t)},
   ready(on){if(!BUSY.includes(A.ph)){A.ph=on?'ready':'idle';if(A.mood!=='idle'&&A.t-A.moodT>2.5)setMood('idle',A.t)}}}}
 return{create,TIER,W,H,LAYOUT:{board:{x:25,y:14,w:52,h:70},card:{x:RX-60,y:40,w:120,h:68}}}})();

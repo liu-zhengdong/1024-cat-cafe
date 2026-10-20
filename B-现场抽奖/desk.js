@@ -8,7 +8,6 @@
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const TIER=t=>['谢谢惠顾','一等奖','二等奖','三等奖'][t]||'';
 const ERR={closed:'抽奖暂停了（设置页里打开）',disk:'没存上：看一下这台电脑的磁盘',net:'连不上抽奖服务：看一下黑窗口还开着没有',bad:'工号不对：字母、数字、- 和 _，2～32 位',none:'没有这一次'};
-const sfx=k=>{try{Sound.sfx(k)}catch(e){}};
 async function api(m,p,b){try{const r=await fetch('api/'+p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});return await r.json()}catch(e){return{err:'net'}}}
 
 /* ---------- 操作条：左边一句话，右边按钮 ---------- */
@@ -32,7 +31,7 @@ function claimed(d){cur=d;bar(`登记好了 · ${esc(d.emp)}`,`${esc(TIER(d.tier
 
 async function claim(emp,force){emp=emp.trim();if(!emp)return;const r=await api('POST','claim',{no:cur.no,emp,force});
   if(r.err==='dup')return win(cur,{emp,dup:{emp:emp.replace(/\s+/g,'').toUpperCase(),prev:r.prev}});
-  if(r.err)return win(cur,{emp,err:ERR[r.err]||'没登记上'});sfx('stamp');await load();claimed(r.draw)}
+  if(r.err)return win(cur,{emp,err:ERR[r.err]||'没登记上'});try{Sfx.ev('stamp')}catch(e){}await load();claimed(r.draw)}
 async function voidIt(){if(!confirm(`作废第 ${cur.no} 次的${TIER(cur.tier)}？奖品放回奖池，这一次不算。`))return;const r=await api('POST','void',{no:cur.no});
   if(r.err)return win(cur,{err:ERR[r.err]||'没作废成'});await load();idle(`第 ${r.draw.no} 次作废了，奖品放回奖池`)}
 
@@ -70,7 +69,7 @@ function frame(ms){use(ctx);sc.draw(ms/1000);requestAnimationFrame(frame)}
 
 // 声音：活动现场默认开着（猫咖里默认关）；条上一个开关
 const paintSnd=()=>{$('snd').textContent='声音 '+(Sound.on?'开':'关')};
-$('snd').onclick=()=>{Sound.set(!Sound.on);paintSnd()};
+$('snd').onclick=()=>{Sound.set(!Sound.on);if(!Sound.on)try{Sfx.stop()}catch(e){}paintSnd()};
 addEventListener('pointerdown',()=>{try{Sound.init()}catch(e){}},{once:true});
 // 空格 / 回车：等着、谢谢惠顾、登记好了的时候就是"抽一次"；在输入框里不算
 addEventListener('keydown',e=>{try{Sound.init()}catch(x){}if((e.key===' '||e.key==='Enter')&&!e.repeat&&document.activeElement.tagName!=='INPUT'&&$('go')&&!$('go').disabled){e.preventDefault();go()}});
