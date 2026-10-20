@@ -15,7 +15,7 @@ async function load(){const r=await api('GET','state');if(r.err){$('live').textC
   const won=D.filter(d=>d.tier>0&&!d.void).length;
   $('stats').innerHTML=`<span><b>${esc(r.total)}</b>次</span><span><b>${esc(won)}</b>中奖</span><span><b>${esc(r.cards)}</b>张图鉴卡发出去了</span>${r.pending?`<span style="color:var(--bad)">第 ${esc(r.pending.no)} 次中了${esc(TIER(r.pending.tier))}，还没登记工号</span>`:''}`;
   $('openTag').textContent=r.open?'抽奖开着':'暂停中';$('openTag').className='tag '+(r.open?'on':'off');$('openBtn').textContent=r.open?'暂停':'继续';
-  if(document.activeElement!==$('note'))$('note').value=r.note||'';drawCardImg();drawPrizes()}
+  if(document.activeElement!==$('note'))$('note').value=r.note||'';drawCardImg();if(!$('prizes').contains(document.activeElement))drawPrizes()}
 const setting=async(body,el,ok)=>{const r=await api('POST','settings',body);if(r.err)return say(el,ERR[r.err]||'没保存上',1);say(el,ok);load()};
 $('openBtn').onclick=()=>{const on=!S.open;if(!on&&!confirm('暂停抽奖？抽奖页上"抽一次"会点不了。'))return;setting({open:on},$('openMsg'),on?'继续了':'暂停了')};
 $('noteBtn').onclick=()=>setting({note:$('note').value},$('noteMsg'),'保存了');
@@ -33,7 +33,7 @@ function drawCardImg(){$('cardImg').innerHTML=`<span style="display:inline-flex;
 /* ---------- 奖品 ---------- */
 const pct=v=>`${+v.toFixed(2)}%`;
 function drawPrizes(){const P=S.prizes.slice().sort((a,b)=>a.tier-b.tier);
-  $('prizes').innerHTML=P.map(p=>`<tr><td class="im">${thumb(p.img)}</td><td>${esc(TIER(p.tier))}</td><td>${esc(p.name)}</td><td class="n">${esc(pct(p.prob))}</td><td class="n">${p.stock===null?'不限':esc(p.stock)}</td>
+  $('prizes').innerHTML=P.map(p=>`<tr><td class="im">${thumb(p.img)}</td><td>${esc(TIER(p.tier))}</td><td>${esc(p.name)}</td><td class="n"><label class="pin"><input type="number" data-prob="${esc(p.id)}" min="0" max="100" step="0.01" value="${esc(+p.prob)}" title="改完按回车或点别处就保存；0 就是停掉这一档">%</label></td><td class="n">${p.stock===null?'不限':esc(p.stock)}</td>
     <td class="n">${esc(p.given)}</td><td class="n">${p.rest===null?'—':p.rest===0?'<span style="color:var(--bad)">发完了</span>':esc(p.rest)}</td>
     <td><div class="acts"><button class="lbtn" data-img="${esc(p.id)}">${p.img?'换图':'上传图片'}</button>${p.img?`<button class="lbtn" data-imgdel="${esc(p.id)}">删图</button>`:''}${p.stock===null?'':`<button class="lbtn" data-re="${esc(p.id)}">补货</button>`}<button class="lbtn" data-ed="${esc(p.id)}">改</button>${p.given?'':`<button class="lbtn" data-del="${esc(p.id)}">删</button>`}</div></td></tr>`).join('')
     +`<tr><td class="im">${thumb(S.cardImg)}</td><td>谢谢惠顾</td><td>猫猫图鉴卡</td><td class="n">${esc(pct(S.lose))}</td><td class="n" colspan="3" style="text-align:left;color:var(--dim)">剩下的概率${S.prizes.some(p=>p.rest===0)?'，含已经发完的那几档':''}</td><td></td></tr>`;
@@ -42,9 +42,14 @@ function drawPrizes(){const P=S.prizes.slice().sort((a,b)=>a.tier-b.tier);
   $('prizes').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=async()=>{if(!confirm('删掉这张图？'))return;await api('POST','image/del',{id:b.dataset.imgdel});load()});
   $('prizes').querySelectorAll('[data-re]').forEach(b=>b.onclick=async()=>{const p=find(b.dataset.re),n=Math.floor(+prompt(`给「${p.name}」补几份？（现在还剩 ${p.rest} 份）`,'1'));if(!(n>=1))return;
     const r=await api('POST','restock',{id:p.id,n});if(r.err)alert(ERR[r.err]);load()});
-  $('prizes').querySelectorAll('[data-ed]').forEach(b=>b.onclick=async()=>{const p=find(b.dataset.ed);const name=prompt('名称',p.name);if(name===null)return;const w=prompt('概率，百分数（0 就是停掉这一档）',p.prob);if(w===null)return;
+  $('prizes').querySelectorAll('[data-ed]').forEach(b=>b.onclick=async()=>{const p=find(b.dataset.ed);const name=prompt('名称',p.name);if(name===null)return;
     const s=prompt(`库存（空着=不限；不能少于已经发出去的 ${p.given} 份）`,p.stock===null?'':p.stock);if(s===null)return;
-    const r=await api('POST','prize',{id:p.id,tier:p.tier,name,prob:+w,stock:s.trim()===''?null:+s});if(r.err)alert(r.err==='sum'?ERR.sum:'没改成：名称 1～30 个字，概率 0～100、最多两位小数，库存是整数、不少于已发');load()});
+    const r=await api('POST','prize',{id:p.id,tier:p.tier,name,prob:p.prob,stock:s.trim()===''?null:+s});if(r.err)alert('没改成：名称 1～30 个字，库存是整数、不少于已发');load()});
+  // 概率：改完回车或点别处就存；存不上就退回原来的数
+  $('prizes').querySelectorAll('[data-prob]').forEach(f=>{f.onkeydown=e=>{if(e.key==='Enter')f.blur();if(e.key==='Escape'){f.value=+find(f.dataset.prob).prob;f.blur()}};
+    f.onchange=async()=>{const p=find(f.dataset.prob),v=f.value.trim()===''?NaN:+f.value;if(v===p.prob)return;
+      const r=await api('POST','prize',{id:p.id,tier:p.tier,name:p.name,prob:v,stock:p.stock});if(r.err){say($('pMsg'),r.err==='sum'?ERR.sum:'概率是 0～100，最多两位小数',1);f.value=+p.prob;return}
+      say($('pMsg'),`「${p.name}」改成 ${pct(v)} 了`);f.blur();load()}});
   $('prizes').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const p=find(b.dataset.del);if(!confirm(`删掉「${p.name}」？`))return;await api('POST','prize/del',{id:p.id});load()})}
 $('pAdd').onclick=async()=>{const s=$('pStock').value.trim(),r=await api('POST','prize',{tier:+$('pTier').value,name:$('pName').value,prob:+$('pP').value,stock:s===''?null:+s});
   if(r.err)return say($('pMsg'),r.err==='sum'?ERR.sum:'名称 1～30 个字，概率 0～100、最多两位小数，库存是不小于 0 的整数或者空着',1);$('pName').value='';$('pP').value='';$('pStock').value='';say($('pMsg'),'加上了');load()};
